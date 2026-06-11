@@ -312,7 +312,8 @@ export class LayoutComponent {
   );
 
   compartilhar(): void {
-    const url = `${window.location.origin}/publico`;
+    const base = document.baseURI.endsWith('/') ? document.baseURI : document.baseURI + '/';
+    const url = `${base}publico`;
     navigator.clipboard.writeText(url).then(() => {
       this.snackBar.open('Link copiado! Os participantes sempre verão os dados mais recentes.', 'OK', {
         duration: 4000,
