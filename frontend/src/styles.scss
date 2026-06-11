@@ -1,0 +1,100 @@
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$green-palette,
+      tertiary: mat.$yellow-palette,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background-color: #f5f5f5;
+  color-scheme: light;
+}
+
+/* Snackbar de sucesso */
+.snack-success .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #2e7d32;
+  --mdc-snackbar-supporting-text-color: white;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #4caf50; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2e7d32; }
+
+/* Cards com sombra suave */
+mat-card {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Inputs numéricos sem setas */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
+/* ===== Sidenav: força ícones e textos brancos no fundo verde ===== */
+.app-sidenav {
+  /* Variáveis M3 do Material para list items */
+  --mat-list-item-label-text-color: rgba(255, 255, 255, 0.92);
+  --mat-list-item-supporting-text-color: rgba(255, 255, 255, 0.7);
+  --mat-list-item-leading-icon-color: rgba(255, 255, 255, 0.92);
+  --mat-list-item-trailing-icon-color: rgba(255, 255, 255, 0.7);
+  --mat-list-item-hover-label-text-color: #ffd600;
+  --mat-list-item-hover-leading-icon-color: #ffd600;
+  --mat-list-item-hover-state-layer-color: rgba(255, 214, 0, 0.18);
+  --mat-list-item-focus-label-text-color: #ffd600;
+  --mat-list-item-focus-leading-icon-color: #ffd600;
+  --mat-list-item-focus-state-layer-color: rgba(255, 214, 0, 0.18);
+  --mat-list-item-pressed-label-text-color: #ffd600;
+  --mdc-list-list-item-label-text-color: rgba(255, 255, 255, 0.92);
+  --mdc-list-list-item-hover-label-text-color: #ffd600;
+  --mdc-list-list-item-focus-label-text-color: #ffd600;
+  --mat-divider-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Ícones e spans dentro do nav-list do sidenav */
+.app-sidenav .mat-mdc-list-item,
+.app-sidenav .mdc-list-item {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.app-sidenav .mat-mdc-list-item .mat-icon,
+.app-sidenav .mdc-list-item .mat-icon,
+.app-sidenav mat-icon {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.app-sidenav .mat-mdc-list-item .mdc-list-item__primary-text,
+.app-sidenav .mdc-list-item__primary-text {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* Estado ativo/hover — exclui .badge para não virar amarelo */
+.app-sidenav .mat-mdc-list-item:hover .mat-icon,
+.app-sidenav .mat-mdc-list-item:hover .mdc-list-item__primary-text,
+.app-sidenav .active-link .mat-icon,
+.app-sidenav .active-link .mdc-list-item__primary-text {
+  color: #ffd600 !important;
+}
+
+.app-sidenav .mat-mdc-list-item:hover .badge,
+.app-sidenav .active-link .badge {
+  color: #000 !important;
+}
+
+/* Badge de quantidade: sempre preto, nunca herda branco do sidenav */
+.app-sidenav .badge {
+  color: #000 !important;
+}
