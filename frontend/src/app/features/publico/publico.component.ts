@@ -67,14 +67,11 @@ import { BolaoService } from '../../core/services/bolao.service';
           <span class="confetti">🎉</span>
         </div>
 
-        <!-- SEM RESULTADOS -->
-        <div class="no-results" *ngIf="jogosEncerrados().length === 0 && bolao().participantes.length > 0">
-          <mat-icon>schedule</mat-icon>
-          <p>Aguardando resultados dos jogos...</p>
-          <small>
-            {{ bolao().participantes.length }} participante(s) ·
-            {{ bolao().jogos.length }} jogo(s) previsto(s)
-          </small>
+        <!-- SEM JOGOS -->
+        <div class="no-results" *ngIf="bolao().jogos.length === 0 && bolao().participantes.length > 0">
+          <mat-icon>sports_soccer</mat-icon>
+          <p>Nenhum jogo cadastrado ainda.</p>
+          <small>{{ bolao().participantes.length }} participante(s) inscrito(s)</small>
         </div>
 
         <!-- SEM DADOS AINDA -->
@@ -119,16 +116,55 @@ import { BolaoService } from '../../core/services/bolao.service';
           </mat-card-content>
         </mat-card>
 
-        <!-- JOGOS E PALPITES -->
+        <!-- PRÓXIMOS JOGOS (ABERTOS) -->
+        <div *ngIf="jogosAbertos().length > 0">
+          <h2 class="section-title">
+            <mat-icon>schedule</mat-icon>
+            Próximos Jogos
+            <span class="section-count">{{ jogosAbertos().length }}</span>
+          </h2>
+
+          <mat-card *ngFor="let jogo of jogosAbertos()" class="jogo-card">
+            <div class="jogo-header">
+              <div class="jogo-header-top">
+                <span class="fase-tag">{{ jogo.fase }}</span>
+                <span class="status-badge aberto">Aguardando resultado</span>
+              </div>
+              <div class="match-row">
+                <span class="team-name">{{ jogo.timeCasa }}</span>
+                <span class="vs-box">VS</span>
+                <span class="team-name">{{ jogo.timeVisitante }}</span>
+              </div>
+            </div>
+
+            <div class="palpites-list" *ngIf="getPalpitesDoJogo(jogo).length > 0">
+              <div *ngFor="let part of bolao().participantes" class="palpite-item">
+                <span class="p-name">{{ part.nome }}</span>
+                <span class="p-guess">{{ getPalpiteTexto(jogo, part.id) }}</span>
+              </div>
+            </div>
+
+            <div class="sem-palpites" *ngIf="getPalpitesDoJogo(jogo).length === 0">
+              <mat-icon>edit_note</mat-icon>
+              <span>Nenhum palpite registrado ainda</span>
+            </div>
+          </mat-card>
+        </div>
+
+        <!-- JOGOS ENCERRADOS E PALPITES -->
         <div *ngIf="jogosEncerrados().length > 0">
           <h2 class="section-title">
             <mat-icon>sports_soccer</mat-icon>
-            Jogos e Palpites
+            Jogos Encerrados
+            <span class="section-count">{{ jogosEncerrados().length }}</span>
           </h2>
 
           <mat-card *ngFor="let jogo of jogosEncerrados()" class="jogo-card">
             <div class="jogo-header">
-              <span class="fase-tag">{{ jogo.fase }}</span>
+              <div class="jogo-header-top">
+                <span class="fase-tag">{{ jogo.fase }}</span>
+                <span class="status-badge encerrado">Encerrado</span>
+              </div>
               <div class="match-row">
                 <span class="team-name">{{ jogo.timeCasa }}</span>
                 <span class="score-box">
@@ -446,6 +482,83 @@ import { BolaoService } from '../../core/services/bolao.service';
     .p-vencedor .p-pts { color: #f57f17; }
     .p-errou .p-pts { color: #c62828; }
 
+    /* SECTION COUNT BADGE */
+    .section-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 0.75rem;
+      font-weight: 700;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 11px;
+      margin-left: 4px;
+    }
+
+    /* JOGO HEADER TOP */
+    .jogo-header-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    /* STATUS BADGES */
+    .status-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    .status-badge.aberto {
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+
+    .status-badge.encerrado {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    /* VS BOX (jogos abertos) */
+    .vs-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+      color: #757575;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 10px;
+      letter-spacing: 1px;
+    }
+
+    /* SEM PALPITES */
+    .sem-palpites {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 16px;
+      color: #9e9e9e;
+      font-size: 0.85rem;
+    }
+
+    .sem-palpites mat-icon {
+      font-size: 1.1rem;
+      width: 1.1rem;
+      height: 1.1rem;
+      color: #bdbdbd;
+    }
+
     /* FOOTER */
     .pub-footer {
       text-align: center;
@@ -475,9 +588,17 @@ export class PublicoComponent {
   readonly vencedores = this.bolaoService.vencedores;
   readonly carregando = this.bolaoService.carregando;
 
+  readonly jogosAbertos = computed(() =>
+    this.bolao().jogos.filter(j => !j.encerrado)
+  );
+
   readonly jogosEncerrados = computed(() =>
     this.bolao().jogos.filter(j => j.encerrado && j.resultado)
   );
+
+  getPalpitesDoJogo(jogo: Jogo) {
+    return jogo.palpites;
+  }
 
   getPalpiteTexto(jogo: Jogo, participanteId: string): string {
     const p = jogo.palpites.find(pal => pal.participanteId === participanteId);
