@@ -27,12 +27,16 @@ const FASES_COPA = [
 ];
 
 const TIMES_COPA = [
-  'Argentina', 'Alemanha', 'Brasil', 'França', 'Inglaterra', 'Espanha',
-  'Itália', 'Portugal', 'Holanda', 'Bélgica', 'Croácia', 'Uruguai',
-  'Colômbia', 'México', 'Japão', 'Marrocos', 'Senegal', 'Estados Unidos',
-  'Canadá', 'Austrália', 'Polônia', 'Sérvia', 'Suíça', 'Dinamarca',
-  'Coreia do Sul', 'Equador', 'Camarões', 'Ghana', 'Costa Rica', 'Tunísia',
-  'Arábia Saudita', 'Qatar',
+  'África do Sul', 'Alemanha', 'Arábia Saudita', 'Argélia', 'Argentina',
+  'Austrália', 'Áustria', 'Bélgica', 'Bósnia e Herzegovina', 'Brasil',
+  'Cabo Verde', 'Canadá', 'Colômbia', 'Congo RD', 'Coreia do Sul',
+  'Costa do Marfim', 'Croácia', 'Curaçao', 'Egito', 'Equador',
+  'Escócia', 'Espanha', 'Estados Unidos', 'França', 'Ghana',
+  'Haiti', 'Holanda', 'Inglaterra', 'Irã', 'Iraque',
+  'Japão', 'Jordânia', 'Marrocos', 'México', 'Noruega',
+  'Nova Zelândia', 'Panamá', 'Paraguai', 'Portugal', 'Qatar',
+  'Senegal', 'Suécia', 'Suíça', 'Tchéquia', 'Tunísia',
+  'Turquia', 'Uruguai', 'Uzbequistão',
 ];
 
 @Component({
