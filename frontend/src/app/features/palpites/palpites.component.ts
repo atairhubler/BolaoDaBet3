@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed } from '@angular/core';
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -15,6 +15,7 @@ import { Jogo, Participante } from '../../core/models';
   imports: [
     CommonModule,
     CurrencyPipe,
+    DatePipe,
     FormsModule,
     RouterModule,
     MatCardModule,
@@ -63,6 +64,12 @@ import { Jogo, Participante } from '../../core/models';
             </div>
             <div class="jogo-meta">
               <span class="fase-badge">{{ jogo.fase }}</span>
+              <span *ngIf="jogo.dataHora" class="data-jogo">
+                <mat-icon>event</mat-icon>
+                {{ jogo.dataHora | date:'EEE dd/MM':'':'pt-BR' }}
+                <mat-icon>schedule</mat-icon>
+                {{ jogo.dataHora | date:'HH:mm':'America/Sao_Paulo' }}
+              </span>
               <span class="palpites-count">
                 <mat-icon>how_to_vote</mat-icon>
                 {{ jogo.palpites.length }} / {{ participantes().length }} palpites
@@ -260,6 +267,25 @@ import { Jogo, Participante } from '../../core/models';
       padding: 4px 10px;
       border-radius: 12px;
       font-size: 0.78rem;
+    }
+
+    .data-jogo {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      color: rgba(255,255,255,0.85);
+      font-size: 0.8rem;
+      background: rgba(255,255,255,0.1);
+      padding: 3px 8px;
+      border-radius: 10px;
+      text-transform: capitalize;
+    }
+
+    .data-jogo mat-icon {
+      font-size: 13px;
+      width: 13px;
+      height: 13px;
+      opacity: 0.8;
     }
 
     .palpites-count {
