@@ -121,6 +121,21 @@ const TIMES_COPA = [
         </mat-card-content>
       </mat-card>
 
+      <!-- Busca por seleção -->
+      <div class="busca-bar">
+        <mat-icon class="filtro-icon">search</mat-icon>
+        <input
+          class="busca-input"
+          type="text"
+          placeholder="Buscar por seleção..."
+          [value]="filtroTime()"
+          (input)="filtroTime.set($any($event.target).value)"
+        />
+        <button *ngIf="filtroTime()" class="busca-clear" (click)="filtroTime.set('')" title="Limpar">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
       <!-- Jogos Abertos -->
       <mat-card class="list-card list-card-abertos">
         <mat-card-header>
@@ -132,8 +147,12 @@ const TIMES_COPA = [
 
         <mat-card-content>
           <div class="empty-jogos" *ngIf="jogosAbertos().length === 0">
-            <mat-icon>check_circle</mat-icon>
-            <p>Nenhum jogo aberto no momento.</p>
+            <mat-icon>{{ filtroTime() ? 'search_off' : 'check_circle' }}</mat-icon>
+            <p *ngIf="filtroTime()">Nenhuma seleção encontrada para "<strong>{{ filtroTime() }}</strong>".</p>
+            <p *ngIf="!filtroTime()">Nenhum jogo aberto no momento.</p>
+            <button *ngIf="filtroTime()" mat-stroked-button (click)="filtroTime.set('')" style="margin-top:8px">
+              Limpar busca
+            </button>
           </div>
 
           <div class="jogo-item jogo-aberto" *ngFor="let jogo of jogosAbertos()">
@@ -264,6 +283,46 @@ const TIMES_COPA = [
     .page-header p { margin: 4px 0 0; color: #757575; }
 
     .add-card { margin-bottom: 20px; }
+
+    .busca-bar {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 24px;
+      padding: 8px 16px;
+      margin-bottom: 16px;
+      gap: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .busca-bar:focus-within { border-color: #43a047; }
+
+    .filtro-icon { color: #9e9e9e; font-size: 1.2rem; width: 1.2rem; height: 1.2rem; }
+
+    .busca-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 0.95rem;
+      background: transparent;
+      color: #212121;
+    }
+
+    .busca-clear {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      color: #9e9e9e;
+      border-radius: 50%;
+      transition: background 0.15s;
+    }
+
+    .busca-clear:hover { background: #f5f5f5; color: #616161; }
+    .busca-clear mat-icon { font-size: 1.1rem; width: 1.1rem; height: 1.1rem; }
 
     .add-form {
       display: flex;
@@ -519,12 +578,29 @@ export class JogosComponent {
   editandoValor = '';
 
   readonly mostrarEncerrados = signal(false);
+  readonly filtroTime = signal('');
 
   readonly fases = FASES_COPA;
   readonly timesDisponiveis = TIMES_COPA;
   readonly jogos = () => this.bolaoService.bolao().jogos;
-  readonly jogosAbertos = computed(() => this.bolaoService.bolao().jogos.filter(j => !j.encerrado));
-  readonly jogosEncerrados = computed(() => this.bolaoService.bolao().jogos.filter(j => j.encerrado));
+
+  readonly jogosAbertos = computed(() => {
+    const busca = this.filtroTime().toLowerCase().trim();
+    return this.bolaoService.bolao().jogos.filter(j => {
+      if (j.encerrado) return false;
+      if (busca && !j.timeCasa.toLowerCase().includes(busca) && !j.timeVisitante.toLowerCase().includes(busca)) return false;
+      return true;
+    });
+  });
+
+  readonly jogosEncerrados = computed(() => {
+    const busca = this.filtroTime().toLowerCase().trim();
+    return this.bolaoService.bolao().jogos.filter(j => {
+      if (!j.encerrado) return false;
+      if (busca && !j.timeCasa.toLowerCase().includes(busca) && !j.timeVisitante.toLowerCase().includes(busca)) return false;
+      return true;
+    });
+  });
 
   toggleEncerrados(): void {
     this.mostrarEncerrados.update(v => !v);
