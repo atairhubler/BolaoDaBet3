@@ -624,12 +624,12 @@ export class DashboardComponent {
   readonly formatarChip = formatarChip;
 
   readonly jogosAoVivo = computed(() =>
-    this.bolao().jogos.filter(j => !j.encerrado && !!j.placardAoVivo)
+    this.bolao().jogos.filter(j => !j.encerrado && !!j.placardAoVivo && j.palpites.length > 0)
   );
 
   readonly datasDisponiveis = computed(() => {
     const datas = new Set<string>();
-    for (const jogo of this.bolao().jogos.filter(j => !j.encerrado && !!j.dataHora && !j.placardAoVivo)) {
+    for (const jogo of this.bolao().jogos.filter(j => !j.encerrado && !!j.dataHora && !j.placardAoVivo && j.palpites.length > 0)) {
       datas.add(getDataBrasilia(jogo.dataHora!));
     }
     return Array.from(datas).sort();
@@ -639,7 +639,7 @@ export class DashboardComponent {
     const filtro = this.filtroData();
     return this.bolao().jogos
       .filter(j => {
-        if (j.encerrado || !j.dataHora || j.placardAoVivo) return false;
+        if (j.encerrado || !j.dataHora || j.placardAoVivo || j.palpites.length === 0) return false;
         if (filtro && getDataBrasilia(j.dataHora) !== filtro) return false;
         return true;
       })
@@ -647,7 +647,7 @@ export class DashboardComponent {
   });
 
   readonly jogosSemData = computed(() =>
-    this.bolao().jogos.filter(j => !j.encerrado && !j.dataHora && !j.placardAoVivo)
+    this.bolao().jogos.filter(j => !j.encerrado && !j.dataHora && !j.placardAoVivo && j.palpites.length > 0)
   );
 
   selecionarData(data: string): void {
