@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../../environments/environment';
-import { Bolao, ClassificacaoItem, Jogo, Participante, Palpite, Resultado } from '../models';
+import { Bolao, ClassificacaoItem, Jogo, Participante, Palpite, PalpiteLog, Resultado } from '../models';
 
 const STORAGE_KEY = 'bolao-copa-data';
 const BOLAO_ID = 'bet3';
@@ -33,13 +33,10 @@ export class BolaoService {
   readonly classificacao = computed<ClassificacaoItem[]>(() => {
     const { participantes, jogos, valorEntrada } = this._bolao();
     const jogosEncerrados = jogos.filter(j => j.encerrado && j.resultado);
-    const totalJogos = jogos.length;
-    const totalPremio = valorEntrada * participantes.length;
 
     const ganhoMap = new Map<string, number>();
     for (const jogo of jogosEncerrados) {
-      if (totalJogos === 0) break;
-      const premioDoJogo = totalPremio / totalJogos;
+      const premioDoJogo = jogo.palpites.length * valorEntrada;
       const pontosJogo = jogo.palpites.map(p => ({
         id: p.participanteId,
         pts: this.calcularPontuacao(p, jogo.resultado!),
@@ -65,8 +62,7 @@ export class BolaoService {
 
         const pts = this.calcularPontuacao(palpite, jogo.resultado);
         pontos += pts;
-        if (pts === 3) acertosExatos++;
-        else if (pts === 1) acertosVencedor++;
+        if (pts === 1) acertosExatos++;
       }
 
       return { participante, pontos, acertosExatos, acertosVencedor, vencedor: false, ganho: ganhoMap.get(participante.id) ?? 0 };
@@ -74,20 +70,17 @@ export class BolaoService {
 
     if (items.length === 0) return items;
 
-    const maxGanho = Math.max(...items.map(i => i.ganho));
+    const maxExatos = Math.max(...items.map(i => i.acertosExatos));
 
     return items
-      .map(item => ({ ...item, vencedor: item.ganho === maxGanho && maxGanho > 0 }))
-      .sort((a, b) => b.ganho - a.ganho || b.acertosExatos - a.acertosExatos);
+      .map(item => ({ ...item, vencedor: item.acertosExatos === maxExatos && maxExatos > 0 }))
+      .sort((a, b) => b.acertosExatos - a.acertosExatos || b.ganho - a.ganho);
   });
 
   calcularGanhoDoJogo(jogo: Jogo): Map<string, number> {
     if (!jogo.encerrado || !jogo.resultado) return new Map();
-    const { jogos, valorEntrada, participantes } = this._bolao();
-    const totalJogos = jogos.length;
-    if (totalJogos === 0) return new Map();
-    const totalPremio = valorEntrada * participantes.length;
-    const premioDoJogo = totalPremio / totalJogos;
+    const { valorEntrada } = this._bolao();
+    const premioDoJogo = jogo.palpites.length * valorEntrada;
 
     const pts = jogo.palpites.map(p => ({
       id: p.participanteId,
@@ -133,12 +126,13 @@ export class BolaoService {
     this.persistir();
   }
 
-  adicionarJogo(timeCasa: string, timeVisitante: string, fase: string): void {
+  adicionarJogo(timeCasa: string, timeVisitante: string, fase: string, dataHora?: string): void {
     const novo: Jogo = {
       id: this.gerarId(),
       timeCasa: timeCasa.trim(),
       timeVisitante: timeVisitante.trim(),
       fase: fase.trim(),
+      dataHora: dataHora || undefined,
       palpites: [],
       encerrado: false,
     };
@@ -152,6 +146,9 @@ export class BolaoService {
   }
 
   registrarPalpite(jogoId: string, participanteId: string, golsCasa: number, golsVisitante: number): void {
+    const jogoAtual = this._bolao().jogos.find(j => j.id === jogoId);
+    const isUpdate = jogoAtual?.palpites.some(p => p.participanteId === participanteId) ?? false;
+
     this._bolao.update(b => ({
       ...b,
       jogos: b.jogos.map(j => {
@@ -161,6 +158,63 @@ export class BolaoService {
       }),
     }));
     this.persistir();
+    this.logPalpite(jogoId, participanteId, golsCasa, golsVisitante, isUpdate ? 'ATUALIZADO' : 'CRIADO');
+  }
+
+  async carregarLogs(): Promise<PalpiteLog[]> {
+    const { data } = await this.supabase
+      .from('palpites_log')
+      .select('*')
+      .eq('bolao_id', BOLAO_ID)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    return (data as PalpiteLog[]) ?? [];
+  }
+
+  inscricaoLogs(onInsert: (log: PalpiteLog) => void): () => void {
+    const channel = this.supabase
+      .channel('palpites-log-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'palpites_log' }, (payload) => {
+        onInsert(payload['new'] as PalpiteLog);
+      })
+      .subscribe();
+    return () => { this.supabase.removeChannel(channel); };
+  }
+
+  removerPalpite(jogoId: string, participanteId: string): void {
+    const jogo = this._bolao().jogos.find(j => j.id === jogoId);
+    const palpite = jogo?.palpites.find(p => p.participanteId === participanteId);
+    if (!palpite) return;
+
+    const { golsCasa, golsVisitante } = palpite;
+    this._bolao.update(b => ({
+      ...b,
+      jogos: b.jogos.map(j =>
+        j.id === jogoId
+          ? { ...j, palpites: j.palpites.filter(p => p.participanteId !== participanteId) }
+          : j
+      ),
+    }));
+    this.persistir();
+    this.logPalpite(jogoId, participanteId, golsCasa, golsVisitante, 'REMOVIDO');
+  }
+
+  private async logPalpite(jogoId: string, participanteId: string, golsCasa: number, golsVisitante: number, acao: 'CRIADO' | 'ATUALIZADO' | 'REMOVIDO'): Promise<void> {
+    const bolao = this._bolao();
+    const jogo = bolao.jogos.find(j => j.id === jogoId);
+    const participante = bolao.participantes.find(p => p.id === participanteId);
+    if (!jogo || !participante) return;
+    await this.supabase.from('palpites_log').insert({
+      bolao_id: BOLAO_ID,
+      participante_id: participanteId,
+      participante_nome: participante.nome,
+      jogo_id: jogoId,
+      time_casa: jogo.timeCasa,
+      time_visitante: jogo.timeVisitante,
+      gols_casa: golsCasa,
+      gols_visitante: golsVisitante,
+      acao,
+    });
   }
 
   registrarResultado(jogoId: string, golsCasa: number, golsVisitante: number): void {
@@ -170,6 +224,14 @@ export class BolaoService {
       jogos: b.jogos.map(j =>
         j.id === jogoId ? { ...j, resultado, encerrado: true } : j
       ),
+    }));
+    this.persistir();
+  }
+
+  atualizarDataHoraJogo(jogoId: string, dataHora: string | undefined): void {
+    this._bolao.update(b => ({
+      ...b,
+      jogos: b.jogos.map(j => j.id === jogoId ? { ...j, dataHora } : j),
     }));
     this.persistir();
   }
@@ -186,11 +248,9 @@ export class BolaoService {
 
   calcularPontuacao(palpite: Palpite, resultado: Resultado): number {
     if (palpite.golsCasa === resultado.golsCasa && palpite.golsVisitante === resultado.golsVisitante) {
-      return 3;
+      return 1;
     }
-    const outcomePalpite = Math.sign(palpite.golsCasa - palpite.golsVisitante);
-    const outcomeResultado = Math.sign(resultado.golsCasa - resultado.golsVisitante);
-    return outcomePalpite === outcomeResultado ? 1 : 0;
+    return 0;
   }
 
   private async inicializarSupabase(): Promise<void> {

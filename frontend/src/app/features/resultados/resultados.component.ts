@@ -38,7 +38,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
         <mat-icon class="page-icon">scoreboard</mat-icon>
         <div>
           <h1>Resultados</h1>
-          <p>Insira o placar real dos jogos para calcular a pontuação.</p>
+          <p>Resultados atualizados automaticamente via API. Entrada manual disponível como fallback.</p>
         </div>
       </div>
 
@@ -46,6 +46,12 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
         <mat-icon>warning</mat-icon>
         <span>Nenhum jogo cadastrado ainda.</span>
         <a routerLink="/jogos" mat-stroked-button>Cadastrar Jogos</a>
+      </div>
+
+      <!-- Aviso sobre atualização automática -->
+      <div *ngIf="jogosAbertos().length > 0" class="info-automatico">
+        <mat-icon>schedule</mat-icon>
+        <span>Os resultados são atualizados automaticamente a cada 20 minutos via API. Use a opção manual apenas se a atualização automática falhar.</span>
       </div>
 
       <!-- Jogos em aberto -->
@@ -71,7 +77,16 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
               <span class="time">{{ jogo.timeVisitante }}</span>
             </div>
 
-            <div class="resultado-form">
+            <!-- Botão para revelar formulário manual -->
+            <div class="manual-toggle">
+              <button mat-stroked-button (click)="toggleForm(jogo.id)" class="btn-manual">
+                <mat-icon>{{ formVisivel[jogo.id] ? 'visibility_off' : 'edit' }}</mat-icon>
+                {{ formVisivel[jogo.id] ? 'Ocultar entrada manual' : 'Inserir resultado manualmente' }}
+              </button>
+            </div>
+
+            <!-- Formulário oculto por padrão -->
+            <div *ngIf="formVisivel[jogo.id]" class="resultado-form">
               <span class="resultado-label">Resultado:</span>
               <div class="placar-row">
                 <input
@@ -265,15 +280,6 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
       text-align: center;
     }
 
-    .resultado-form {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding-top: 12px;
-      border-top: 1px solid #f5f5f5;
-      flex-wrap: wrap;
-    }
-
     .resultado-label {
       font-weight: 600;
       color: #424242;
@@ -361,6 +367,62 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
       gap: 4px;
       font-size: 0.8rem;
     }
+
+    .info-automatico {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 0.87rem;
+      color: #1565c0;
+    }
+
+    .info-automatico mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: #1976d2;
+    }
+
+    .manual-toggle {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 10px;
+      border-top: 1px solid #f5f5f5;
+    }
+
+    .btn-manual {
+      font-size: 0.78rem;
+      color: #9e9e9e !important;
+      border-color: #e0e0e0 !important;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-manual mat-icon {
+      font-size: 15px;
+      width: 15px;
+      height: 15px;
+    }
+
+    .resultado-form {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      background: #fffde7;
+      border: 1px dashed #f9a825;
+      border-radius: 8px;
+      padding: 12px;
+    }
   `],
 })
 export class ResultadosComponent {
@@ -369,6 +431,11 @@ export class ResultadosComponent {
   private readonly dialog = inject(MatDialog);
 
   resultadoForm: Record<string, number> = {};
+  formVisivel: Record<string, boolean> = {};
+
+  toggleForm(jogoId: string): void {
+    this.formVisivel[jogoId] = !this.formVisivel[jogoId];
+  }
 
   readonly jogosAbertos = computed(() =>
     this.bolaoService.bolao().jogos.filter(j => !j.encerrado)

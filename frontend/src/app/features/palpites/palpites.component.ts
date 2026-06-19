@@ -1,19 +1,11 @@
-import { Component, inject, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, computed } from '@angular/core';
+import { CommonModule, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTabsModule } from '@angular/material/tabs';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs/operators';
 import { BolaoService } from '../../core/services/bolao.service';
 import { Jogo, Participante } from '../../core/models';
 
@@ -22,18 +14,13 @@ import { Jogo, Participante } from '../../core/models';
   standalone: true,
   imports: [
     CommonModule,
+    CurrencyPipe,
     FormsModule,
     RouterModule,
     MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
     MatButtonModule,
     MatIconModule,
-    MatSelectModule,
-    MatChipsModule,
-    MatDividerModule,
     MatSnackBarModule,
-    MatTabsModule,
   ],
   template: `
     <div class="palpites-page">
@@ -41,68 +28,84 @@ import { Jogo, Participante } from '../../core/models';
         <mat-icon class="page-icon">edit_note</mat-icon>
         <div>
           <h1>Palpites</h1>
-          <p>Registre os palpites de cada participante para cada jogo.</p>
+          <p>Registre os palpites para os jogos abertos.</p>
         </div>
       </div>
 
-      <div *ngIf="semParticipantes || semJogos" class="alert-card">
+      <!-- Alerta: sem participantes -->
+      <div *ngIf="semParticipantes" class="alert-card">
         <mat-icon>warning</mat-icon>
-        <div>
-          <strong>Atenção:</strong>
-          <span *ngIf="semParticipantes"> Adicione participantes antes de registrar palpites.</span>
-          <span *ngIf="semJogos"> Cadastre jogos antes de registrar palpites.</span>
-        </div>
-        <a routerLink="/participantes" mat-stroked-button *ngIf="semParticipantes">Ir para Participantes</a>
-        <a routerLink="/jogos" mat-stroked-button *ngIf="semJogos && !semParticipantes">Ir para Jogos</a>
+        <span>Adicione participantes antes de registrar palpites.</span>
+        <a routerLink="/participantes" mat-stroked-button>Ir para Participantes</a>
       </div>
 
-      <div *ngIf="!semParticipantes && !semJogos">
-        <!-- Seletor de Jogo -->
-        <mat-card class="selector-card">
-          <mat-card-content>
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Selecione o Jogo</mat-label>
-              <mat-icon matPrefix>sports_soccer</mat-icon>
-              <mat-select [(ngModel)]="jogoSelecionadoId" (ngModelChange)="onJogoChange()">
-                <mat-option *ngFor="let j of jogosAbertos()" [value]="j.id">
-                  {{ j.timeCasa }} vs {{ j.timeVisitante }} — {{ j.fase }}
-                </mat-option>
-              </mat-select>
-            </mat-form-field>
-          </mat-card-content>
-        </mat-card>
+      <!-- Estado vazio: nenhum jogo aberto -->
+      <mat-card *ngIf="!semParticipantes && jogosAbertos().length === 0" class="empty-card">
+        <mat-card-content>
+          <div class="empty-state">
+            <span>⚽</span>
+            <h2>Nenhum jogo aberto</h2>
+            <p>Todos os jogos foram encerrados ou não há jogos cadastrados.</p>
+            <a routerLink="/jogos" mat-flat-button color="primary">Ir para Jogos</a>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
-        <!-- Tabela de palpites -->
-        <mat-card *ngIf="jogoSelecionado()" class="palpites-card">
-          <mat-card-header>
-            <mat-card-title class="jogo-titulo">
-              {{ jogoSelecionado()!.timeCasa }}
+      <!-- Cards de jogos abertos -->
+      <div *ngFor="let jogo of jogosAbertos(); trackBy: trackById" class="jogo-section">
+        <mat-card class="jogo-card">
+          <!-- Cabeçalho do jogo (clicável para expandir/retrair) -->
+          <div class="jogo-header" (click)="toggleJogo(jogo.id)">
+            <div class="jogo-titulo">
+              <span class="time">{{ jogo.timeCasa }}</span>
               <span class="vs-badge">VS</span>
-              {{ jogoSelecionado()!.timeVisitante }}
-            </mat-card-title>
-            <mat-card-subtitle>{{ jogoSelecionado()!.fase }}</mat-card-subtitle>
-          </mat-card-header>
+              <span class="time">{{ jogo.timeVisitante }}</span>
+            </div>
+            <div class="jogo-meta">
+              <span class="fase-badge">{{ jogo.fase }}</span>
+              <span class="palpites-count">
+                <mat-icon>how_to_vote</mat-icon>
+                {{ jogo.palpites.length }} / {{ participantes().length }} palpites
+              </span>
+              <span class="premio-jogo" *ngIf="jogo.palpites.length > 0">
+                <mat-icon>monetization_on</mat-icon>
+                {{ jogo.palpites.length * valorEntrada() | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+              </span>
+              <mat-icon class="expand-icon">
+                {{ isExpanded(jogo.id) ? 'expand_less' : 'expand_more' }}
+              </mat-icon>
+            </div>
+          </div>
 
-          <mat-card-content>
-            <div class="palpites-header">
-              <span class="participante-col">Participante</span>
-              <span class="time-col">{{ jogoSelecionado()!.timeCasa }}</span>
-              <span class="x-col"></span>
-              <span class="time-col">{{ jogoSelecionado()!.timeVisitante }}</span>
-              <span class="action-col"></span>
+          <mat-card-content *ngIf="isExpanded(jogo.id)">
+            <!-- Cabeçalho da tabela -->
+            <div class="tabela-header">
+              <span>Participante</span>
+              <span class="text-center">{{ jogo.timeCasa }}</span>
+              <span></span>
+              <span class="text-center">{{ jogo.timeVisitante }}</span>
+              <span></span>
             </div>
 
-            <div class="palpite-row" *ngFor="let p of participantes()">
+            <!-- Linha por participante -->
+            <div
+              class="palpite-row"
+              *ngFor="let p of participantes()"
+              [class.tem-palpite]="palpiteJaExiste(jogo, p.id)"
+            >
               <span class="participante-nome">
-                <mat-icon>person</mat-icon>
-                {{ p.nome }}
+                <mat-icon class="person-icon">person</mat-icon>
+                <span>{{ p.nome }}</span>
+                <span *ngIf="palpiteJaExiste(jogo, p.id)" class="palpite-atual">
+                  {{ getPalpiteAtual(jogo, p.id) }}
+                </span>
               </span>
 
               <div class="placar-inputs">
                 <input
                   type="number"
                   class="gol-input"
-                  [(ngModel)]="palpitesForm[p.id + '_casa']"
+                  [(ngModel)]="getForm(jogo.id)[p.id + '_casa']"
                   min="0"
                   max="20"
                   placeholder="0"
@@ -111,39 +114,35 @@ import { Jogo, Participante } from '../../core/models';
                 <input
                   type="number"
                   class="gol-input"
-                  [(ngModel)]="palpitesForm[p.id + '_visitante']"
+                  [(ngModel)]="getForm(jogo.id)[p.id + '_visitante']"
                   min="0"
                   max="20"
                   placeholder="0"
                 />
               </div>
 
-              <button
-                mat-flat-button
-                color="primary"
-                size="small"
-                (click)="salvarPalpite(p)"
-                [disabled]="!palpiteValido(p.id)"
-                class="save-btn"
-              >
-                <mat-icon>save</mat-icon>
-                {{ palpiteJaExiste(p.id) ? 'Atualizar' : 'Salvar' }}
-              </button>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <!-- Resumo dos palpites do jogo -->
-        <mat-card *ngIf="jogoSelecionado() && jogoSelecionado()!.palpites.length > 0" class="resumo-card">
-          <mat-card-header>
-            <mat-card-title>Palpites Registrados</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="resumo-row" *ngFor="let palpite of jogoSelecionado()!.palpites">
-              <span class="resumo-nome">{{ getNomeParticipante(palpite.participanteId) }}</span>
-              <mat-chip class="palpite-chip">
-                {{ palpite.golsCasa }} × {{ palpite.golsVisitante }}
-              </mat-chip>
+              <div class="row-actions">
+                <button
+                  mat-flat-button
+                  [color]="palpiteJaExiste(jogo, p.id) ? 'accent' : 'primary'"
+                  (click)="salvarPalpite(jogo.id, p)"
+                  [disabled]="!palpiteValido(jogo.id, p.id)"
+                  class="save-btn"
+                >
+                  <mat-icon>{{ palpiteJaExiste(jogo, p.id) ? 'update' : 'save' }}</mat-icon>
+                  {{ palpiteJaExiste(jogo, p.id) ? 'Atualizar' : 'Salvar' }}
+                </button>
+                <button
+                  *ngIf="palpiteJaExiste(jogo, p.id)"
+                  mat-icon-button
+                  color="warn"
+                  (click)="removerPalpite(jogo.id, p)"
+                  class="remove-btn"
+                  title="Remover palpite"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
             </div>
           </mat-card-content>
         </mat-card>
@@ -151,7 +150,7 @@ import { Jogo, Participante } from '../../core/models';
     </div>
   `,
   styles: [`
-    .palpites-page { max-width: 800px; }
+    .palpites-page { max-width: 860px; }
 
     .page-header {
       display: flex;
@@ -176,6 +175,7 @@ import { Jogo, Participante } from '../../core/models';
 
     .page-header p { margin: 4px 0 0; color: #757575; }
 
+    /* Alert */
     .alert-card {
       display: flex;
       align-items: center;
@@ -186,36 +186,123 @@ import { Jogo, Participante } from '../../core/models';
       padding: 16px;
       margin-bottom: 16px;
     }
-
     .alert-card mat-icon { color: #f57c00; }
 
-    .selector-card { margin-bottom: 20px; }
-    .full-width { width: 100%; }
+    /* Empty state */
+    .empty-card mat-card-content { padding: 0 !important; }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .empty-state span { font-size: 4rem; }
+    .empty-state h2 { color: #1b5e20; margin: 16px 0 8px; }
+    .empty-state p { color: #757575; margin-bottom: 24px; }
+
+    /* Jogo card */
+    .jogo-section { margin-bottom: 24px; }
+
+    .jogo-card { overflow: hidden; }
+
+    .jogo-header {
+      background: linear-gradient(135deg, #1b5e20, #2e7d32);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      transition: filter 0.15s;
+    }
+
+    .jogo-header:hover { filter: brightness(1.1); }
+
+    .expand-icon {
+      color: rgba(255,255,255,0.8);
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      transition: transform 0.2s;
+    }
 
     .jogo-titulo {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 1.2rem !important;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .time {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: white;
     }
 
     .vs-badge {
-      background: #1b5e20;
-      color: white;
-      padding: 2px 8px;
+      background: rgba(255,255,255,0.2);
+      color: #ffd600;
+      padding: 2px 10px;
       border-radius: 6px;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
+      font-weight: 700;
     }
 
-    .palpites-header {
+    .jogo-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .fase-badge {
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.9);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+    }
+
+    .palpites-count {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: #ffd600;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .palpites-count mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+
+    .premio-jogo {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 214, 0, 0.25);
+      color: #ffd600;
+      font-size: 0.88rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .premio-jogo mat-icon {
+      font-size: 15px;
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Tabela */
+    .tabela-header {
       display: grid;
-      grid-template-columns: 1fr 80px 24px 80px auto;
+      grid-template-columns: 1fr 70px 24px 70px auto;
       gap: 8px;
-      padding: 8px 12px;
+      padding: 8px 16px;
       background: #f5f5f5;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 600;
       color: #757575;
       text-transform: uppercase;
@@ -223,31 +310,46 @@ import { Jogo, Participante } from '../../core/models';
       align-items: center;
     }
 
-    .time-col, .x-col { text-align: center; }
+    .text-center { text-align: center; }
 
     .palpite-row {
       display: grid;
       grid-template-columns: 1fr auto auto;
       gap: 12px;
       align-items: center;
-      padding: 10px 12px;
-      border-bottom: 1px solid #f5f5f5;
+      padding: 10px 16px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.15s;
     }
 
     .palpite-row:last-child { border-bottom: none; }
+    .palpite-row:hover { background: #fafafa; }
+    .palpite-row.tem-palpite { background: #f9fbe7; }
+    .palpite-row.tem-palpite:hover { background: #f0f4c3; }
 
     .participante-nome {
       display: flex;
       align-items: center;
       gap: 6px;
       font-weight: 500;
+      flex-wrap: wrap;
     }
 
-    .participante-nome mat-icon {
+    .person-icon {
       font-size: 18px;
       width: 18px;
       height: 18px;
       color: #9e9e9e;
+    }
+
+    .palpite-atual {
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 4px;
     }
 
     .placar-inputs {
@@ -260,7 +362,7 @@ import { Jogo, Participante } from '../../core/models';
       width: 52px;
       height: 40px;
       text-align: center;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: 700;
       border: 2px solid #e0e0e0;
       border-radius: 8px;
@@ -273,112 +375,120 @@ import { Jogo, Participante } from '../../core/models';
     .x-separator {
       font-weight: 700;
       color: #9e9e9e;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
     }
 
-    .save-btn {
+    .row-actions {
       display: flex;
       align-items: center;
       gap: 4px;
+    }
+
+    .save-btn {
       font-size: 0.8rem !important;
+      height: 36px;
     }
 
-    .resumo-card { margin-top: 20px; }
-
-    .resumo-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #f5f5f5;
-    }
-
-    .resumo-row:last-child { border-bottom: none; }
-
-    .resumo-nome { font-weight: 500; }
-
-    .palpite-chip {
-      background: #e8f5e9 !important;
-      color: #2e7d32 !important;
-      font-weight: 700 !important;
+    .remove-btn {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
     }
 
     @media (max-width: 600px) {
-      .palpites-header { display: none; }
+      .tabela-header { display: none; }
       .palpite-row { grid-template-columns: 1fr; gap: 8px; }
+      .jogo-header { flex-direction: column; align-items: flex-start; }
     }
   `],
 })
 export class PalpitesComponent {
   private readonly bolaoService = inject(BolaoService);
-  private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
 
-  jogoSelecionadoId = '';
-  palpitesForm: Record<string, number> = {};
-
-  private readonly queryJogoId = toSignal(
-    this.route.queryParams.pipe(map(p => p['jogoId'] ?? '')),
-    { initialValue: '' }
-  );
+  private readonly forms: Record<string, Record<string, number>> = {};
+  private readonly expandedJogos = signal<Set<string>>(new Set());
 
   readonly jogosAbertos = computed(() =>
     this.bolaoService.bolao().jogos.filter(j => !j.encerrado)
   );
 
   readonly participantes = () => this.bolaoService.bolao().participantes;
+  readonly valorEntrada = () => this.bolaoService.bolao().valorEntrada;
 
-  readonly jogoSelecionado = computed<Jogo | undefined>(() => {
-    const id = this.jogoSelecionadoId || this.queryJogoId();
-    if (!this.jogoSelecionadoId && id) {
-      setTimeout(() => { this.jogoSelecionadoId = id; this.carregarPalpites(); });
-    }
-    return this.bolaoService.bolao().jogos.find(j => j.id === id);
-  });
-
-  get semParticipantes(): boolean { return this.participantes().length === 0; }
-  get semJogos(): boolean { return this.jogosAbertos().length === 0; }
-
-  onJogoChange(): void { this.carregarPalpites(); }
-
-  private carregarPalpites(): void {
-    this.palpitesForm = {};
-    const jogo = this.bolaoService.bolao().jogos.find(j => j.id === this.jogoSelecionadoId);
-    if (!jogo) return;
-
-    for (const palpite of jogo.palpites) {
-      this.palpitesForm[`${palpite.participanteId}_casa`] = palpite.golsCasa;
-      this.palpitesForm[`${palpite.participanteId}_visitante`] = palpite.golsVisitante;
-    }
+  get semParticipantes(): boolean {
+    return this.participantes().length === 0;
   }
 
-  palpiteValido(participanteId: string): boolean {
-    const casa = this.palpitesForm[`${participanteId}_casa`];
-    const visitante = this.palpitesForm[`${participanteId}_visitante`];
+  trackById(_: number, jogo: Jogo): string {
+    return jogo.id;
+  }
+
+  isExpanded(jogoId: string): boolean {
+    return this.expandedJogos().has(jogoId);
+  }
+
+  toggleJogo(jogoId: string): void {
+    this.expandedJogos.update(set => {
+      const next = new Set(set);
+      if (next.has(jogoId)) {
+        next.delete(jogoId);
+      } else {
+        next.add(jogoId);
+      }
+      return next;
+    });
+  }
+
+  getForm(jogoId: string): Record<string, number> {
+    if (!this.forms[jogoId]) {
+      this.forms[jogoId] = {};
+      const jogo = this.bolaoService.bolao().jogos.find(j => j.id === jogoId);
+      if (jogo) {
+        for (const palpite of jogo.palpites) {
+          this.forms[jogoId][`${palpite.participanteId}_casa`] = palpite.golsCasa;
+          this.forms[jogoId][`${palpite.participanteId}_visitante`] = palpite.golsVisitante;
+        }
+      }
+    }
+    return this.forms[jogoId];
+  }
+
+  palpiteValido(jogoId: string, participanteId: string): boolean {
+    const form = this.forms[jogoId] ?? {};
+    const casa = form[`${participanteId}_casa`];
+    const visitante = form[`${participanteId}_visitante`];
     return casa !== undefined && casa !== null && !isNaN(Number(casa)) &&
            visitante !== undefined && visitante !== null && !isNaN(Number(visitante)) &&
            Number(casa) >= 0 && Number(visitante) >= 0;
   }
 
-  palpiteJaExiste(participanteId: string): boolean {
-    const jogo = this.jogoSelecionado();
-    return !!jogo?.palpites.some(p => p.participanteId === participanteId);
+  palpiteJaExiste(jogo: Jogo, participanteId: string): boolean {
+    return !!jogo.palpites.some(p => p.participanteId === participanteId);
   }
 
-  salvarPalpite(participante: Participante): void {
-    if (!this.jogoSelecionadoId || !this.palpiteValido(participante.id)) return;
+  getPalpiteAtual(jogo: Jogo, participanteId: string): string {
+    const p = jogo.palpites.find(x => x.participanteId === participanteId);
+    return p ? `${p.golsCasa}×${p.golsVisitante}` : '';
+  }
 
-    const casa = Math.max(0, Math.floor(Number(this.palpitesForm[`${participante.id}_casa`] ?? 0)));
-    const visitante = Math.max(0, Math.floor(Number(this.palpitesForm[`${participante.id}_visitante`] ?? 0)));
-
-    this.bolaoService.registrarPalpite(this.jogoSelecionadoId, participante.id, casa, visitante);
-    this.snackBar.open(`Palpite de ${participante.nome} salvo: ${casa} × ${visitante}`, 'OK', {
+  salvarPalpite(jogoId: string, participante: Participante): void {
+    if (!this.palpiteValido(jogoId, participante.id)) return;
+    const form = this.forms[jogoId];
+    const casa = Math.max(0, Math.floor(Number(form[`${participante.id}_casa`] ?? 0)));
+    const visitante = Math.max(0, Math.floor(Number(form[`${participante.id}_visitante`] ?? 0)));
+    this.bolaoService.registrarPalpite(jogoId, participante.id, casa, visitante);
+    this.snackBar.open(`Palpite de ${participante.nome} salvo: ${casa}×${visitante}`, 'OK', {
       duration: 2500,
-      panelClass: 'snack-success',
     });
   }
 
-  getNomeParticipante(id: string): string {
-    return this.participantes().find(p => p.id === id)?.nome ?? 'Desconhecido';
+  removerPalpite(jogoId: string, participante: Participante): void {
+    this.bolaoService.removerPalpite(jogoId, participante.id);
+    if (this.forms[jogoId]) {
+      delete this.forms[jogoId][`${participante.id}_casa`];
+      delete this.forms[jogoId][`${participante.id}_visitante`];
+    }
+    this.snackBar.open(`Palpite de ${participante.nome} removido.`, 'OK', { duration: 2500 });
   }
 }

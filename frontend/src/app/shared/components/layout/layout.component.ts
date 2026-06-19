@@ -51,18 +51,6 @@ import { BolaoService } from '../../../core/services/bolao.service';
             <mat-icon matListItemIcon>dashboard</mat-icon>
             <span matListItemTitle>Dashboard</span>
           </a>
-          <a mat-list-item routerLink="/configuracao" routerLinkActive="active-link">
-            <mat-icon matListItemIcon>settings</mat-icon>
-            <span matListItemTitle>Configuração</span>
-          </a>
-          <a mat-list-item routerLink="/participantes" routerLinkActive="active-link">
-            <mat-icon matListItemIcon>group</mat-icon>
-            <span matListItemTitle>Participantes</span>
-            <span class="badge" matListItemMeta *ngIf="bolao().participantes.length > 0"
-                  style="color:#000 !important;background:#ffd600 !important;border-radius:10px;font-size:0.7rem;font-weight:700;padding:1px 6px;min-width:18px;display:inline-flex;align-items:center;justify-content:center;">
-              {{ bolao().participantes.length }}
-            </span>
-          </a>
           <a mat-list-item routerLink="/jogos" routerLinkActive="active-link">
             <mat-icon matListItemIcon>sports_soccer</mat-icon>
             <span matListItemTitle>Jogos</span>
@@ -84,6 +72,11 @@ import { BolaoService } from '../../../core/services/bolao.service';
             <mat-icon matListItemIcon>emoji_events</mat-icon>
             <span matListItemTitle>Classificação</span>
           </a>
+          <mat-divider></mat-divider>
+          <a mat-list-item routerLink="/log" routerLinkActive="active-link">
+            <mat-icon matListItemIcon>history</mat-icon>
+            <span matListItemTitle>Log de Palpites</span>
+          </a>
         </mat-nav-list>
 
         <div class="sidenav-footer">
@@ -104,9 +97,6 @@ import { BolaoService } from '../../../core/services/bolao.service';
           </button>
           <span class="toolbar-title">{{ bolao().nome }}</span>
           <span class="toolbar-spacer"></span>
-          <span class="toolbar-badge" *ngIf="vencedores().length > 0">
-            🥇 {{ vencedores().length === 1 ? vencedores()[0].participante.nome + ' venceu!' : vencedores().length + ' vencedores!' }}
-          </span>
           <button mat-icon-button
                   (click)="compartilhar()"
                   matTooltip="Gerar link para participantes"
@@ -274,15 +264,6 @@ import { BolaoService } from '../../../core/services/bolao.service';
     }
 
     .toolbar-spacer { flex: 1; }
-
-    .toolbar-badge {
-      background: #ffd600;
-      color: #1b5e20;
-      padding: 4px 12px;
-      border-radius: 16px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
 
     .share-btn { color: #1b5e20; }
 

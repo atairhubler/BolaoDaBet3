@@ -1,19 +1,15 @@
-import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, signal, computed } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatSelectModule } from '@angular/material/select';
-import { MatExpansionModule } from '@angular/material/expansion';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
 import { BolaoService } from '../../core/services/bolao.service';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -44,20 +40,17 @@ const TIMES_COPA = [
   standalone: true,
   imports: [
     CommonModule,
+    DatePipe,
     FormsModule,
-    RouterModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
     MatIconModule,
-    MatListModule,
     MatChipsModule,
     MatSelectModule,
-    MatExpansionModule,
     MatDialogModule,
     MatSnackBarModule,
-    MatDividerModule,
   ],
   template: `
     <div class="jogos-page">
@@ -99,6 +92,23 @@ const TIMES_COPA = [
               </mat-select>
             </mat-form-field>
 
+            <mat-form-field appearance="outline">
+              <mat-label>Data e Hora</mat-label>
+              <input
+                matInput
+                type="datetime-local"
+                [(ngModel)]="dataHora"
+                placeholder="Opcional"
+              />
+              <mat-icon matSuffix>schedule</mat-icon>
+            </mat-form-field>
+          </div>
+
+          <mat-error *ngIf="timeCasa && timeVisitante && timeCasa === timeVisitante">
+            Os times devem ser diferentes!
+          </mat-error>
+
+          <div class="add-actions">
             <button
               mat-flat-button
               color="primary"
@@ -108,33 +118,102 @@ const TIMES_COPA = [
               <mat-icon>add</mat-icon> Adicionar Jogo
             </button>
           </div>
-          <mat-error *ngIf="timeCasa && timeVisitante && timeCasa === timeVisitante">
-            Os times devem ser diferentes!
-          </mat-error>
         </mat-card-content>
       </mat-card>
 
-      <!-- Lista de jogos -->
-      <mat-card class="list-card">
+      <!-- Jogos Abertos -->
+      <mat-card class="list-card list-card-abertos">
         <mat-card-header>
           <mat-card-title>
-            Jogos Cadastrados
-            <mat-chip class="count-chip">{{ jogos().length }}</mat-chip>
+            Jogos em Aberto
+            <mat-chip class="count-chip count-abertos">{{ jogosAbertos().length }}</mat-chip>
           </mat-card-title>
         </mat-card-header>
 
         <mat-card-content>
-          <div class="empty-jogos" *ngIf="jogos().length === 0">
-            <mat-icon>sports_soccer</mat-icon>
-            <p>Nenhum jogo cadastrado ainda.</p>
+          <div class="empty-jogos" *ngIf="jogosAbertos().length === 0">
+            <mat-icon>check_circle</mat-icon>
+            <p>Nenhum jogo aberto no momento.</p>
           </div>
 
-          <div class="jogo-item" *ngFor="let jogo of jogos(); let i = index">
+          <div class="jogo-item jogo-aberto" *ngFor="let jogo of jogosAbertos()">
             <div class="jogo-header">
-              <mat-chip [class]="jogo.encerrado ? 'chip-encerrado' : 'chip-aberto'">
-                {{ jogo.encerrado ? '✓ Encerrado' : '⏳ Em aberto' }}
-              </mat-chip>
+              <mat-chip class="chip-aberto">⏳ Em aberto</mat-chip>
               <span class="fase-badge">{{ jogo.fase }}</span>
+              <span *ngIf="jogo.dataHora" class="data-hora-badge">
+                <mat-icon>schedule</mat-icon>
+                {{ jogo.dataHora | date:'dd/MM/yyyy HH:mm' }}
+              </span>
+            </div>
+
+            <div class="jogo-placar">
+              <span class="time time-casa">{{ jogo.timeCasa }}</span>
+              <div class="placar-box">
+                <span class="vs-text">VS</span>
+              </div>
+              <span class="time time-visitante">{{ jogo.timeVisitante }}</span>
+            </div>
+
+            <!-- Edição inline de data/hora -->
+            <div class="edit-datahora" *ngIf="editandoId === jogo.id">
+              <input
+                type="datetime-local"
+                class="datahora-input"
+                [(ngModel)]="editandoValor"
+              />
+              <button mat-flat-button color="primary" (click)="salvarDataHora(jogo.id)">
+                <mat-icon>check</mat-icon> Salvar
+              </button>
+              <button mat-stroked-button (click)="cancelarEdicao()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            <div class="jogo-footer">
+              <span class="palpites-count">
+                <mat-icon>how_to_vote</mat-icon>
+                {{ jogo.palpites.length }} palpite(s)
+              </span>
+              <div class="footer-actions">
+                <button mat-icon-button color="primary" (click)="editarDataHora(jogo)" title="Editar data/hora">
+                  <mat-icon>edit_calendar</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="remover(jogo)">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Toggle jogos encerrados -->
+      <div class="encerrados-toggle" *ngIf="jogosEncerrados().length > 0">
+        <button mat-stroked-button (click)="toggleEncerrados()">
+          <mat-icon>{{ mostrarEncerrados() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          {{ mostrarEncerrados() ? 'Ocultar' : 'Ver' }} jogos encerrados
+          <span class="count-encerrados">{{ jogosEncerrados().length }}</span>
+        </button>
+      </div>
+
+      <!-- Jogos Encerrados (colapsável) -->
+      <mat-card class="list-card list-card-encerrados" *ngIf="mostrarEncerrados() && jogosEncerrados().length > 0">
+        <mat-card-header>
+          <mat-card-title>
+            Jogos Encerrados
+            <mat-chip class="count-chip count-encerrados-chip">{{ jogosEncerrados().length }}</mat-chip>
+          </mat-card-title>
+        </mat-card-header>
+
+        <mat-card-content>
+          <div class="jogo-item jogo-encerrado" *ngFor="let jogo of jogosEncerrados()">
+            <div class="jogo-header">
+              <mat-chip class="chip-encerrado">✓ Encerrado</mat-chip>
+              <span class="fase-badge">{{ jogo.fase }}</span>
+              <span *ngIf="jogo.dataHora" class="data-hora-badge">
+                <mat-icon>schedule</mat-icon>
+                {{ jogo.dataHora | date:'dd/MM/yyyy HH:mm' }}
+              </span>
             </div>
 
             <div class="jogo-placar">
@@ -143,24 +222,15 @@ const TIMES_COPA = [
                 <span *ngIf="jogo.resultado" class="resultado-placar">
                   {{ jogo.resultado.golsCasa }} × {{ jogo.resultado.golsVisitante }}
                 </span>
-                <span *ngIf="!jogo.resultado" class="vs-text">VS</span>
               </div>
               <span class="time time-visitante">{{ jogo.timeVisitante }}</span>
             </div>
 
-            <div class="jogo-info">
+            <div class="jogo-footer">
               <span class="palpites-count">
-                <mat-icon>edit_note</mat-icon>
+                <mat-icon>how_to_vote</mat-icon>
                 {{ jogo.palpites.length }} palpite(s)
               </span>
-              <div class="jogo-actions">
-                <button mat-stroked-button color="primary" routerLink="/palpites" [queryParams]="{jogoId: jogo.id}">
-                  <mat-icon>edit_note</mat-icon> Palpites
-                </button>
-                <button mat-icon-button color="warn" (click)="remover(jogo)" [disabled]="jogo.encerrado">
-                  <mat-icon>delete_outline</mat-icon>
-                </button>
-              </div>
             </div>
           </div>
         </mat-card-content>
@@ -199,7 +269,7 @@ const TIMES_COPA = [
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      align-items: center;
+      align-items: flex-start;
       padding: 8px 0;
     }
 
@@ -209,15 +279,19 @@ const TIMES_COPA = [
       font-weight: 900;
       font-size: 1.2rem;
       color: #9e9e9e;
-      padding: 0 4px;
-      padding-top: 10px;
+      padding: 16px 4px 0;
     }
 
-    .add-form button {
+    .add-actions {
+      margin-top: 4px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .add-actions button {
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-top: 4px;
     }
 
     .count-chip {
@@ -255,6 +329,62 @@ const TIMES_COPA = [
       align-items: center;
       gap: 8px;
       margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .list-card-abertos {
+      border-left: 4px solid #2e7d32;
+    }
+
+    .list-card-encerrados {
+      opacity: 0.85;
+      border-left: 4px solid #bdbdbd;
+    }
+
+    .jogo-aberto {
+      border-color: #c8e6c9;
+    }
+
+    .jogo-encerrado {
+      background: #fafafa;
+      border-color: #e0e0e0;
+    }
+
+    .encerrados-toggle {
+      display: flex;
+      justify-content: center;
+      margin: 8px 0 12px;
+    }
+
+    .encerrados-toggle button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #757575;
+      border-color: #e0e0e0;
+    }
+
+    .count-encerrados {
+      background: #e0e0e0;
+      color: #616161;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      min-width: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .count-abertos {
+      background: #e8f5e9 !important;
+      color: #2e7d32 !important;
+    }
+
+    .count-encerrados-chip {
+      background: #eeeeee !important;
+      color: #616161 !important;
     }
 
     .chip-encerrado { background: #e8f5e9 !important; color: #2e7d32 !important; }
@@ -266,6 +396,23 @@ const TIMES_COPA = [
       background: #f5f5f5;
       padding: 3px 10px;
       border-radius: 10px;
+    }
+
+    .data-hora-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.8rem;
+      color: #1565c0;
+      background: #e3f2fd;
+      padding: 3px 10px;
+      border-radius: 10px;
+    }
+
+    .data-hora-badge mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
     }
 
     .jogo-placar {
@@ -306,7 +453,7 @@ const TIMES_COPA = [
       color: #9e9e9e;
     }
 
-    .jogo-info {
+    .jogo-footer {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -325,16 +472,28 @@ const TIMES_COPA = [
 
     .palpites-count mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
-    .jogo-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .jogo-actions button {
+    .footer-actions {
       display: flex;
       align-items: center;
       gap: 4px;
+    }
+
+    .edit-datahora {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      flex-wrap: wrap;
+      border-top: 1px dashed #c8e6c9;
+    }
+
+    .datahora-input {
+      height: 36px;
+      border: 2px solid #2e7d32;
+      border-radius: 6px;
+      padding: 0 8px;
+      font-size: 0.9rem;
+      outline: none;
     }
 
     @media (max-width: 600px) {
@@ -354,22 +513,51 @@ export class JogosComponent {
   timeCasa = '';
   timeVisitante = '';
   fase = '';
+  dataHora = '';
+
+  editandoId: string | null = null;
+  editandoValor = '';
+
+  readonly mostrarEncerrados = signal(false);
 
   readonly fases = FASES_COPA;
   readonly timesDisponiveis = TIMES_COPA;
   readonly jogos = () => this.bolaoService.bolao().jogos;
+  readonly jogosAbertos = computed(() => this.bolaoService.bolao().jogos.filter(j => !j.encerrado));
+  readonly jogosEncerrados = computed(() => this.bolaoService.bolao().jogos.filter(j => j.encerrado));
+
+  toggleEncerrados(): void {
+    this.mostrarEncerrados.update(v => !v);
+  }
 
   adicionar(): void {
     if (!this.timeCasa || !this.timeVisitante || !this.fase || this.timeCasa === this.timeVisitante) return;
 
-    this.bolaoService.adicionarJogo(this.timeCasa, this.timeVisitante, this.fase);
+    this.bolaoService.adicionarJogo(this.timeCasa, this.timeVisitante, this.fase, this.dataHora || undefined);
     this.snackBar.open(`${this.timeCasa} vs ${this.timeVisitante} adicionado!`, 'OK', {
       duration: 2500,
-      panelClass: 'snack-success',
     });
     this.timeCasa = '';
     this.timeVisitante = '';
     this.fase = '';
+    this.dataHora = '';
+  }
+
+  editarDataHora(jogo: { id: string; dataHora?: string }): void {
+    this.editandoId = jogo.id;
+    this.editandoValor = jogo.dataHora ?? '';
+  }
+
+  salvarDataHora(jogoId: string): void {
+    this.bolaoService.atualizarDataHoraJogo(jogoId, this.editandoValor || undefined);
+    this.snackBar.open('Data/hora atualizada!', 'OK', { duration: 2500 });
+    this.editandoId = null;
+    this.editandoValor = '';
+  }
+
+  cancelarEdicao(): void {
+    this.editandoId = null;
+    this.editandoValor = '';
   }
 
   remover(jogo: { id: string; timeCasa: string; timeVisitante: string }): void {

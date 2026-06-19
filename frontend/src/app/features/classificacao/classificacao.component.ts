@@ -4,9 +4,6 @@ import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { BolaoService } from '../../core/services/bolao.service';
 
@@ -20,9 +17,6 @@ import { BolaoService } from '../../core/services/bolao.service';
     MatCardModule,
     MatButtonModule,
     MatIconModule,
-    MatChipsModule,
-    MatDividerModule,
-    MatTableModule,
     MatTooltipModule,
   ],
   template: `
@@ -46,31 +40,6 @@ import { BolaoService } from '../../core/services/bolao.service';
           </div>
         </mat-card-content>
       </mat-card>
-
-      <!-- Vencedores -->
-      <div *ngIf="vencedores().length > 0" class="winners-section">
-        <div class="winners-banner">
-          <div class="confetti">🎉</div>
-          <div class="winners-content">
-            <h2>
-              {{ vencedores().length === 1 ? '🥇 Vencedor do Bolão!' : '🥇 Vencedores do Bolão!' }}
-            </h2>
-            <div class="winner-cards">
-              <div class="winner-card" *ngFor="let v of vencedores()">
-                <span class="winner-trophy">🏆</span>
-                <span class="winner-name">{{ v.participante.nome }}</span>
-                <span class="winner-prize">
-                  {{ v.ganho | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
-                </span>
-              </div>
-            </div>
-            <p class="prize-split-note" *ngIf="vencedores().length > 1">
-              Prêmio dividido igualmente entre {{ vencedores().length }} vencedores.
-            </p>
-          </div>
-          <div class="confetti">🎉</div>
-        </div>
-      </div>
 
       <!-- Info do prêmio -->
       <div class="premio-summary" *ngIf="classificacao().length > 0">
@@ -114,9 +83,8 @@ import { BolaoService } from '../../core/services/bolao.service';
           <div class="ranking-header">
             <span class="col-pos">#</span>
             <span class="col-nome">Participante</span>
+            <span class="col-exatos" matTooltip="Placares exatos acertados">⚽ Acertos Exatos</span>
             <span class="col-ganho">Ganhos</span>
-            <span class="col-exatos" matTooltip="Acertos de placar exato">⚽ Exatos</span>
-            <span class="col-venc" matTooltip="Acertou vencedor mas não o placar">✓ Vencedor</span>
           </div>
 
           <div
@@ -135,13 +103,12 @@ import { BolaoService } from '../../core/services/bolao.service';
               <mat-icon *ngIf="item.vencedor" class="trophy-icon">emoji_events</mat-icon>
               {{ item.participante.nome }}
             </span>
+            <span class="col-exatos">{{ item.acertosExatos }}</span>
             <span class="col-ganho">
               <span class="ganho-badge" [class.ganho-winner]="item.vencedor">
                 {{ item.ganho | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
               </span>
             </span>
-            <span class="col-exatos">{{ item.acertosExatos }}</span>
-            <span class="col-venc">{{ item.acertosVencedor }}</span>
           </div>
         </mat-card-content>
       </mat-card>
@@ -152,20 +119,16 @@ import { BolaoService } from '../../core/services/bolao.service';
           <h3>Como funciona a pontuação</h3>
           <div class="legenda-items">
             <div class="legenda-item">
-              <span class="pts-badge pts-3">3 pts</span>
-              <span>Acertou o placar exato</span>
+              <span class="pts-badge pts-exato">✓ Exato</span>
+              <span>Acertou o placar exato — conta como acerto</span>
             </div>
             <div class="legenda-item">
-              <span class="pts-badge pts-1">1 pt</span>
-              <span>Acertou o vencedor (ou empate), mas não o placar</span>
-            </div>
-            <div class="legenda-item">
-              <span class="pts-badge pts-0">0 pts</span>
-              <span>Errou o resultado</span>
+              <span class="pts-badge pts-0">✗ Erro</span>
+              <span>Qualquer outro resultado — não conta</span>
             </div>
           </div>
           <p class="legenda-prize">
-            Em cada jogo, quem fizer mais pontos ganha a parte do prêmio correspondente a esse jogo. Em caso de empate, o prêmio do jogo é dividido igualmente entre os empatados.
+            Em cada jogo, quem acertou o placar exato divide o prêmio daquele jogo igualmente. Quem tiver mais acertos exatos no total lidera o ranking.
           </p>
         </mat-card-content>
       </mat-card>
@@ -206,73 +169,6 @@ import { BolaoService } from '../../core/services/bolao.service';
     .empty-state h2 { color: #1b5e20; margin: 16px 0 8px; }
     .empty-state p { color: #757575; margin-bottom: 24px; }
 
-    /* Winners banner */
-    .winners-section { margin-bottom: 24px; }
-
-    .winners-banner {
-      background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #1b5e20 100%);
-      border-radius: 16px;
-      padding: 32px 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      color: white;
-    }
-
-    .confetti { font-size: 2.5rem; }
-
-    .winners-content { flex: 1; text-align: center; }
-
-    .winners-content h2 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #ffd600;
-      margin: 0 0 20px;
-    }
-
-    .winner-cards {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .winner-card {
-      background: rgba(255, 214, 0, 0.15);
-      border: 2px solid #ffd600;
-      border-radius: 12px;
-      padding: 16px 24px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .winner-trophy { font-size: 2rem; }
-
-    .winner-name {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: white;
-    }
-
-    .winner-pts {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.8);
-    }
-
-    .winner-prize {
-      font-size: 1.4rem;
-      font-weight: 900;
-      color: #ffd600;
-    }
-
-    .prize-split-note {
-      margin-top: 12px;
-      font-size: 0.85rem;
-      color: rgba(255,255,255,0.7);
-    }
-
     /* Premio summary */
     .premio-summary {
       display: grid;
@@ -307,7 +203,7 @@ import { BolaoService } from '../../core/services/bolao.service';
 
     .ranking-header {
       display: grid;
-      grid-template-columns: 50px 1fr 120px 80px 80px;
+      grid-template-columns: 50px 1fr 120px 120px;
       gap: 8px;
       padding: 8px 12px;
       background: #f5f5f5;
@@ -322,7 +218,7 @@ import { BolaoService } from '../../core/services/bolao.service';
 
     .ranking-row {
       display: grid;
-      grid-template-columns: 50px 1fr 120px 80px 80px;
+      grid-template-columns: 50px 1fr 120px 120px;
       gap: 8px;
       padding: 12px;
       border-radius: 8px;
@@ -401,8 +297,7 @@ import { BolaoService } from '../../core/services/bolao.service';
       text-align: center;
     }
 
-    .pts-3 { background: #e8f5e9; color: #2e7d32; }
-    .pts-1 { background: #fff8e1; color: #f57f17; }
+    .pts-exato { background: #e8f5e9; color: #2e7d32; }
     .pts-0 { background: #ffebee; color: #c62828; }
 
     .legenda-prize {
@@ -415,9 +310,9 @@ import { BolaoService } from '../../core/services/bolao.service';
     @media (max-width: 700px) {
       .ranking-header,
       .ranking-row {
-        grid-template-columns: 40px 1fr 100px;
+        grid-template-columns: 40px 1fr 80px;
       }
-      .col-exatos, .col-venc { display: none; }
+      .col-ganho { display: none; }
     }
   `],
 })
@@ -427,7 +322,6 @@ export class ClassificacaoComponent {
   readonly bolao = this.bolaoService.bolao;
   readonly classificacao = this.bolaoService.classificacao;
   readonly totalPremio = this.bolaoService.totalPremio;
-  readonly vencedores = this.bolaoService.vencedores;
 
   get jogosEncerrados(): number {
     return this.bolao().jogos.filter(j => j.encerrado).length;

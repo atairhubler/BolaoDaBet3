@@ -19,6 +19,7 @@ export interface Jogo {
   timeCasa: string;
   timeVisitante: string;
   fase: string;
+  dataHora?: string;
   palpites: Palpite[];
   resultado?: Resultado;
   encerrado: boolean;
@@ -38,4 +39,18 @@ export interface ClassificacaoItem {
   acertosVencedor: number;
   vencedor: boolean;
   ganho: number;
+}
+
+export interface PalpiteLog {
+  id: number;
+  bolao_id: string;
+  participante_id: string;
+  participante_nome: string;
+  jogo_id: string;
+  time_casa: string;
+  time_visitante: string;
+  gols_casa: number;
+  gols_visitante: number;
+  acao: 'CRIADO' | 'ATUALIZADO' | 'REMOVIDO';
+  created_at: string;
 }
