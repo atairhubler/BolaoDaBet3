@@ -1,5 +1,11 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 const BOLAO_ID = 'bet3';
 const COMPETITION = 'WC';
 
@@ -104,7 +110,11 @@ interface Bolao {
 
 const gerarId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
+
   try {
     const apiToken = Deno.env.get('FOOTBALL_DATA_TOKEN');
     if (!apiToken) {
@@ -213,6 +223,6 @@ Deno.serve(async () => {
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
   });
 }
