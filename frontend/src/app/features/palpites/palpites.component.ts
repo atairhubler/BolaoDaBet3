@@ -424,7 +424,19 @@ import { Jogo, Participante } from '../../core/models';
     @media (max-width: 600px) {
       .tabela-header { display: none; }
       .palpite-row { grid-template-columns: 1fr; gap: 8px; }
-      .jogo-header { flex-direction: column; align-items: flex-start; }
+
+      /* Cabeçalho do jogo mais compacto no mobile */
+      .jogo-header { padding: 10px 12px; }
+      .jogo-titulo { gap: 6px; }
+      .time { font-size: 0.88rem; }
+      .vs-badge { font-size: 0.7rem; padding: 1px 5px; }
+
+      /* Oculta fase e contagem de palpites no mobile */
+      .fase-badge { display: none; }
+      .palpites-count { display: none; }
+
+      /* Mantém apenas data e prêmio na meta */
+      .jogo-meta { gap: 6px; }
     }
   `],
 })

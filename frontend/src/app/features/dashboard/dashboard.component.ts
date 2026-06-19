@@ -1,5 +1,5 @@
-import { Component, inject } from '@angular/core';
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { Component, inject, computed } from '@angular/core';
+import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +15,7 @@ import { BolaoService } from '../../core/services/bolao.service';
     CommonModule,
     RouterModule,
     CurrencyPipe,
+    DatePipe,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -27,104 +28,75 @@ import { BolaoService } from '../../core/services/bolao.service';
         <span>🏆</span> {{ bolao().nome }}
       </h1>
 
-      <!-- Cards de resumo -->
-      <div class="summary-grid">
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <div class="summary-icon green"><mat-icon>monetization_on</mat-icon></div>
-            <div class="summary-info">
-              <div class="summary-value">{{ totalPremio() | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}</div>
-              <div class="summary-label">Prêmio Total</div>
-              <div class="summary-sub">{{ bolao().valorEntrada | currency:'BRL':'symbol':'1.2-2':'pt-BR' }} × {{ bolao().participantes.length }} participantes</div>
-            </div>
-          </mat-card-content>
-        </mat-card>
+      <!-- Próximos Jogos em Destaque -->
+      <div *ngIf="proximosJogos().length > 0" class="proximos-section">
+        <div class="section-header">
+          <mat-icon>upcoming</mat-icon>
+          <span>Próximos Jogos</span>
+          <span class="section-count">{{ proximosJogos().length }}</span>
+        </div>
 
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <div class="summary-icon blue"><mat-icon>group</mat-icon></div>
-            <div class="summary-info">
-              <div class="summary-value">{{ bolao().participantes.length }}</div>
-              <div class="summary-label">Participantes</div>
-              <a routerLink="/participantes" mat-button color="primary" class="card-link">Gerenciar →</a>
+        <div class="proximos-grid">
+          <div class="proximo-card" *ngFor="let jogo of proximosJogos()">
+            <div class="proximo-data">
+              <div class="data-dia">{{ jogo.dataHora | date:'EEE':'':'pt-BR' }}</div>
+              <div class="data-numero">{{ jogo.dataHora | date:'dd/MM' }}</div>
+              <div class="data-hora">{{ jogo.dataHora | date:'HH:mm':'America/Sao_Paulo' }}</div>
             </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="summary-card">
-          <mat-card-content>
-            <div class="summary-icon orange"><mat-icon>sports_soccer</mat-icon></div>
-            <div class="summary-info">
-              <div class="summary-value">{{ jogosTotal }}</div>
-              <div class="summary-label">Jogos</div>
-              <div class="summary-sub">
-                {{ jogosEncerrados }} encerrado(s) · {{ jogosAbertos }} em aberto
+            <div class="proximo-divider"></div>
+            <div class="proximo-confronto">
+              <div class="fase-tag">{{ jogo.fase }}</div>
+              <div class="confronto-times">
+                <span class="time-nome">{{ jogo.timeCasa }}</span>
+                <span class="vs-separador">VS</span>
+                <span class="time-nome">{{ jogo.timeVisitante }}</span>
+              </div>
+              <div class="palpites-badge" *ngIf="jogo.palpites.length > 0">
+                <mat-icon>how_to_vote</mat-icon>
+                {{ jogo.palpites.length }} palpite(s)
+              </div>
+              <div class="sem-palpites" *ngIf="jogo.palpites.length === 0">
+                <mat-icon>warning_amber</mat-icon>
+                Sem palpites ainda
               </div>
             </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="summary-card" *ngIf="vencedores().length > 0">
-          <mat-card-content>
-            <div class="summary-icon gold"><mat-icon>emoji_events</mat-icon></div>
-            <div class="summary-info">
-              <div class="summary-value">🥇</div>
-              <div class="summary-label">
-                {{ vencedores().length === 1 ? 'Vencedor' : 'Vencedores' }}
-              </div>
-              <div class="summary-sub" *ngFor="let v of vencedores()">
-                {{ v.participante.nome }} — {{ v.pontos }} pts
-              </div>
-            </div>
-          </mat-card-content>
-        </mat-card>
+          </div>
+        </div>
       </div>
 
-      <!-- Ações rápidas -->
+      <!-- Jogos sem data registrada (em aberto mas sem horário) -->
+      <div *ngIf="jogosSemData().length > 0" class="sem-data-section">
+        <div class="section-header secondary">
+          <mat-icon>sports_soccer</mat-icon>
+          <span>Jogos em Aberto (sem data)</span>
+          <span class="section-count secondary">{{ jogosSemData().length }}</span>
+        </div>
+        <div class="sem-data-list">
+          <div class="sem-data-row" *ngFor="let jogo of jogosSemData()">
+            <span class="time-sd">{{ jogo.timeCasa }}</span>
+            <span class="vs-sd">VS</span>
+            <span class="time-sd">{{ jogo.timeVisitante }}</span>
+            <span class="fase-sd">{{ jogo.fase }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ações Rápidas -->
       <mat-card class="actions-card">
         <mat-card-header>
           <mat-card-title>Ações Rápidas</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="actions-grid">
-            <a routerLink="/participantes" mat-stroked-button color="primary">
-              <mat-icon>person_add</mat-icon> Adicionar Participante
-            </a>
             <a routerLink="/jogos" mat-stroked-button color="primary">
               <mat-icon>add_circle</mat-icon> Cadastrar Jogo
             </a>
             <a routerLink="/palpites" mat-stroked-button color="primary">
               <mat-icon>edit_note</mat-icon> Registrar Palpites
             </a>
-            <a routerLink="/resultados" mat-stroked-button color="accent">
-              <mat-icon>scoreboard</mat-icon> Inserir Resultados
-            </a>
             <a routerLink="/classificacao" mat-flat-button color="primary">
               <mat-icon>emoji_events</mat-icon> Ver Classificação
             </a>
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <!-- Últimos jogos -->
-      <mat-card *ngIf="ultimosJogos.length > 0" class="recent-card">
-        <mat-card-header>
-          <mat-card-title>Jogos Recentes</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="jogo-row" *ngFor="let jogo of ultimosJogos">
-            <mat-chip [class]="jogo.encerrado ? 'chip-encerrado' : 'chip-aberto'">
-              {{ jogo.encerrado ? 'Encerrado' : 'Em aberto' }}
-            </mat-chip>
-            <span class="jogo-confronto">
-              {{ jogo.timeCasa }}
-              <span class="placar" *ngIf="jogo.resultado">
-                {{ jogo.resultado.golsCasa }} × {{ jogo.resultado.golsVisitante }}
-              </span>
-              <span class="vs" *ngIf="!jogo.resultado"> vs </span>
-              {{ jogo.timeVisitante }}
-            </span>
-            <span class="jogo-fase">{{ jogo.fase }}</span>
           </div>
         </mat-card-content>
       </mat-card>
@@ -156,62 +128,211 @@ import { BolaoService } from '../../core/services/bolao.service';
       gap: 10px;
     }
 
-    .summary-grid {
+    /* ── Seção próximos jogos ── */
+    .proximos-section {
+      margin-bottom: 28px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #1b5e20;
+    }
+
+    .section-header mat-icon { color: #2e7d32; }
+
+    .section-header.secondary {
+      color: #555;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .section-header.secondary mat-icon { color: #9e9e9e; }
+
+    .section-count {
+      background: #2e7d32;
+      color: white;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .section-count.secondary {
+      background: #bdbdbd;
+    }
+
+    .proximos-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .proximo-card {
+      display: flex;
+      align-items: stretch;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      border-left: 4px solid #2e7d32;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+
+    .proximo-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+
+    .proximo-data {
+      background: #1b5e20;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 16px;
+      min-width: 72px;
+      gap: 2px;
+    }
+
+    .data-dia {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      opacity: 0.8;
+      letter-spacing: 0.5px;
+    }
+
+    .data-numero {
+      font-size: 1.3rem;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+
+    .data-hora {
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(255,255,255,0.18);
+      padding: 2px 6px;
+      border-radius: 8px;
+      margin-top: 4px;
+    }
+
+    .proximo-divider {
+      width: 1px;
+      background: #e0e0e0;
+    }
+
+    .proximo-confronto {
+      flex: 1;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .fase-tag {
+      font-size: 0.72rem;
+      color: #757575;
+      background: #f5f5f5;
+      padding: 2px 8px;
+      border-radius: 8px;
+      align-self: flex-start;
+    }
+
+    .confronto-times {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .time-nome {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #212121;
+    }
+
+    .vs-separador {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #9e9e9e;
+      letter-spacing: 1px;
+    }
+
+    .palpites-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: #2e7d32;
+      font-weight: 600;
+    }
+
+    .palpites-badge mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    .sem-palpites {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      color: #e65100;
+      font-weight: 500;
+    }
+
+    .sem-palpites mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ── Jogos sem data ── */
+    .sem-data-section {
       margin-bottom: 24px;
     }
 
-    .summary-card mat-card-content {
+    .sem-data-list {
+      background: white;
+      border-radius: 10px;
+      border: 1px solid #e0e0e0;
+      overflow: hidden;
+    }
+
+    .sem-data-row {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 20px !important;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #f5f5f5;
+      font-size: 0.9rem;
     }
 
-    .summary-icon {
-      width: 52px;
-      height: 52px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
+    .sem-data-row:last-child { border-bottom: none; }
 
-    .summary-icon mat-icon { font-size: 28px; color: white; }
-    .summary-icon.green { background: #2e7d32; }
-    .summary-icon.blue { background: #1565c0; }
-    .summary-icon.orange { background: #e65100; }
-    .summary-icon.gold { background: #f57f17; }
+    .time-sd { font-weight: 600; color: #424242; }
+    .vs-sd { color: #9e9e9e; font-size: 0.8rem; font-weight: 700; }
 
-    .summary-value {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #212121;
-      line-height: 1;
-    }
-
-    .summary-label {
-      font-size: 0.85rem;
-      color: #757575;
-      margin-top: 4px;
-    }
-
-    .summary-sub {
+    .fase-sd {
+      margin-left: auto;
       font-size: 0.75rem;
-      color: #9e9e9e;
-      margin-top: 2px;
+      color: #757575;
+      background: #f5f5f5;
+      padding: 2px 8px;
+      border-radius: 8px;
     }
 
-    .card-link {
-      padding: 0;
-      font-size: 0.8rem;
-      margin-top: 4px;
-    }
-
-    .actions-card, .recent-card, .empty-card {
+    /* ── Ações rápidas ── */
+    .actions-card, .empty-card {
       margin-bottom: 24px;
     }
 
@@ -228,42 +349,7 @@ import { BolaoService } from '../../core/services/bolao.service';
       gap: 6px;
     }
 
-    .jogo-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 0;
-      border-bottom: 1px solid #f5f5f5;
-    }
-
-    .jogo-row:last-child { border-bottom: none; }
-
-    .chip-encerrado { background: #e8f5e9 !important; color: #2e7d32 !important; }
-    .chip-aberto { background: #fff3e0 !important; color: #e65100 !important; }
-
-    .jogo-confronto {
-      font-weight: 500;
-      flex: 1;
-    }
-
-    .vs { color: #9e9e9e; margin: 0 4px; }
-    .placar {
-      background: #1b5e20;
-      color: white;
-      padding: 2px 10px;
-      border-radius: 12px;
-      font-weight: 700;
-      margin: 0 8px;
-    }
-
-    .jogo-fase {
-      font-size: 0.8rem;
-      color: #757575;
-      background: #f5f5f5;
-      padding: 2px 8px;
-      border-radius: 8px;
-    }
-
+    /* ── Estado vazio ── */
     .empty-state {
       text-align: center;
       padding: 40px 20px;
@@ -287,17 +373,24 @@ import { BolaoService } from '../../core/services/bolao.service';
       gap: 12px;
       flex-wrap: wrap;
     }
+
+    @media (max-width: 600px) {
+      .proximos-grid { grid-template-columns: 1fr; }
+    }
   `],
 })
 export class DashboardComponent {
   private readonly bolaoService = inject(BolaoService);
 
   readonly bolao = this.bolaoService.bolao;
-  readonly totalPremio = this.bolaoService.totalPremio;
-  readonly vencedores = this.bolaoService.vencedores;
 
-  get jogosTotal(): number { return this.bolao().jogos.length; }
-  get jogosEncerrados(): number { return this.bolao().jogos.filter(j => j.encerrado).length; }
-  get jogosAbertos(): number { return this.bolao().jogos.filter(j => !j.encerrado).length; }
-  get ultimosJogos() { return [...this.bolao().jogos].reverse().slice(0, 5); }
+  readonly proximosJogos = computed(() =>
+    this.bolao().jogos
+      .filter(j => !j.encerrado && !!j.dataHora)
+      .sort((a, b) => new Date(a.dataHora!).getTime() - new Date(b.dataHora!).getTime())
+  );
+
+  readonly jogosSemData = computed(() =>
+    this.bolao().jogos.filter(j => !j.encerrado && !j.dataHora)
+  );
 }
