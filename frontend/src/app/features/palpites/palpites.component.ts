@@ -63,25 +63,19 @@ const formatarChip = (dataStr: string): string => {
         </span>
       </div>
 
-      <!-- Filtro por seleção -->
-      <div class="filtro-bar" *ngIf="timesDisponiveis().length > 0">
-        <mat-icon class="filtro-icon">sports_soccer</mat-icon>
-        <div class="filtro-chips">
-          <button
-            class="chip-data"
-            [class.chip-ativo]="filtroTime() === ''"
-            (click)="filtroTime.set('')"
-          >Todos</button>
-          <button
-            class="chip-data chip-time"
-            *ngFor="let t of timesDisponiveis()"
-            [class.chip-ativo]="filtroTime() === t"
-            (click)="selecionarTime(t)"
-          >{{ t }}</button>
-        </div>
-        <span *ngIf="filtroTime()" class="filtro-resultado">
-          {{ jogosAbertos().length }} jogo(s)
-        </span>
+      <!-- Busca por seleção -->
+      <div class="busca-bar">
+        <mat-icon class="filtro-icon">search</mat-icon>
+        <input
+          class="busca-input"
+          type="text"
+          placeholder="Buscar por seleção..."
+          [value]="filtroTime()"
+          (input)="filtroTime.set($any($event.target).value)"
+        />
+        <button *ngIf="filtroTime()" class="busca-clear" (click)="filtroTime.set('')" title="Limpar">
+          <mat-icon>close</mat-icon>
+        </button>
       </div>
 
       <!-- Alerta: sem participantes -->
@@ -284,9 +278,51 @@ const formatarChip = (dataStr: string): string => {
       border-color: #2e7d32 !important;
     }
 
-    .chip-time {
-      text-transform: none;
-      font-size: 0.76rem;
+    .busca-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      background: white;
+      border: 1.5px solid #c8e6c9;
+      border-radius: 24px;
+      padding: 6px 14px;
+      transition: border-color 0.2s;
+    }
+
+    .busca-bar:focus-within {
+      border-color: #2e7d32;
+      box-shadow: 0 0 0 3px rgba(46,125,50,0.08);
+    }
+
+    .busca-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 0.88rem;
+      color: #424242;
+      background: transparent;
+    }
+
+    .busca-input::placeholder { color: #bdbdbd; }
+
+    .busca-clear {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      color: #9e9e9e;
+      transition: color 0.15s;
+    }
+
+    .busca-clear:hover { color: #f44336; }
+
+    .busca-clear mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
     }
 
     .filtro-resultado {
@@ -573,36 +609,25 @@ export class PalpitesComponent {
   readonly filtroTime = signal('');
 
   readonly datasDisponiveis = computed(() => {
-    const time = this.filtroTime();
+    const busca = this.filtroTime().toLowerCase().trim();
     const datas = new Set<string>();
     for (const jogo of this.bolaoService.bolao().jogos.filter(j => !j.encerrado && !!j.dataHora)) {
-      if (time && jogo.timeCasa !== time && jogo.timeVisitante !== time) continue;
+      if (busca && !jogo.timeCasa.toLowerCase().includes(busca) && !jogo.timeVisitante.toLowerCase().includes(busca)) continue;
       datas.add(getDataBrasilia(jogo.dataHora!));
     }
     return Array.from(datas).sort();
   });
 
-  readonly timesDisponiveis = computed(() => {
-    const data = this.filtroData();
-    const times = new Set<string>();
-    for (const jogo of this.bolaoService.bolao().jogos.filter(j => !j.encerrado)) {
-      if (data && (!jogo.dataHora || getDataBrasilia(jogo.dataHora) !== data)) continue;
-      times.add(jogo.timeCasa);
-      times.add(jogo.timeVisitante);
-    }
-    return Array.from(times).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  });
-
   readonly jogosAbertos = computed(() => {
     const filtroData = this.filtroData();
-    const filtroTime = this.filtroTime();
+    const busca = this.filtroTime().toLowerCase().trim();
     return this.bolaoService.bolao().jogos.filter(j => {
       if (j.encerrado) return false;
       if (filtroData) {
         if (!j.dataHora) return false;
         if (getDataBrasilia(j.dataHora) !== filtroData) return false;
       }
-      if (filtroTime && j.timeCasa !== filtroTime && j.timeVisitante !== filtroTime) return false;
+      if (busca && !j.timeCasa.toLowerCase().includes(busca) && !j.timeVisitante.toLowerCase().includes(busca)) return false;
       return true;
     });
   });
@@ -618,10 +643,6 @@ export class PalpitesComponent {
 
   selecionarData(data: string): void {
     this.filtroData.set(this.filtroData() === data ? '' : data);
-  }
-
-  selecionarTime(time: string): void {
-    this.filtroTime.set(this.filtroTime() === time ? '' : time);
   }
 
   trackById(_: number, jogo: Jogo): string {
