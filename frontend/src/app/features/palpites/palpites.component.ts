@@ -63,6 +63,27 @@ const formatarChip = (dataStr: string): string => {
         </span>
       </div>
 
+      <!-- Filtro por seleção -->
+      <div class="filtro-bar" *ngIf="timesDisponiveis().length > 0">
+        <mat-icon class="filtro-icon">sports_soccer</mat-icon>
+        <div class="filtro-chips">
+          <button
+            class="chip-data"
+            [class.chip-ativo]="filtroTime() === ''"
+            (click)="filtroTime.set('')"
+          >Todos</button>
+          <button
+            class="chip-data chip-time"
+            *ngFor="let t of timesDisponiveis()"
+            [class.chip-ativo]="filtroTime() === t"
+            (click)="selecionarTime(t)"
+          >{{ t }}</button>
+        </div>
+        <span *ngIf="filtroTime()" class="filtro-resultado">
+          {{ jogosAbertos().length }} jogo(s)
+        </span>
+      </div>
+
       <!-- Alerta: sem participantes -->
       <div *ngIf="semParticipantes" class="alert-card">
         <mat-icon>warning</mat-icon>
@@ -75,11 +96,14 @@ const formatarChip = (dataStr: string): string => {
         <mat-card-content>
           <div class="empty-state">
             <span>⚽</span>
-            <h2>{{ filtroData() ? 'Nenhum jogo nesta data' : 'Nenhum jogo aberto' }}</h2>
-            <p *ngIf="filtroData()">Selecione outra data ou clique em "Todos" para ver todos os jogos.</p>
-            <p *ngIf="!filtroData()">Todos os jogos foram encerrados ou não há jogos cadastrados.</p>
-            <a *ngIf="!filtroData()" routerLink="/jogos" mat-flat-button color="primary">Ir para Jogos</a>
-            <button *ngIf="filtroData()" mat-stroked-button (click)="filtroData.set('')">Ver todos os jogos</button>
+            <h2>{{ (filtroData() || filtroTime()) ? 'Nenhum jogo encontrado' : 'Nenhum jogo aberto' }}</h2>
+            <p *ngIf="filtroData() || filtroTime()">Ajuste os filtros ou clique em "Todos" para ver todos os jogos.</p>
+            <p *ngIf="!filtroData() && !filtroTime()">Todos os jogos foram encerrados ou não há jogos cadastrados.</p>
+            <div class="empty-actions-filtro" *ngIf="filtroData() || filtroTime()">
+              <button *ngIf="filtroData()" mat-stroked-button (click)="filtroData.set('')">Limpar data</button>
+              <button *ngIf="filtroTime()" mat-stroked-button (click)="filtroTime.set('')">Limpar seleção</button>
+            </div>
+            <a *ngIf="!filtroData() && !filtroTime()" routerLink="/jogos" mat-flat-button color="primary">Ir para Jogos</a>
           </div>
         </mat-card-content>
       </mat-card>
@@ -260,11 +284,24 @@ const formatarChip = (dataStr: string): string => {
       border-color: #2e7d32 !important;
     }
 
+    .chip-time {
+      text-transform: none;
+      font-size: 0.76rem;
+    }
+
     .filtro-resultado {
       font-size: 0.82rem;
       color: #757575;
       font-weight: 500;
       white-space: nowrap;
+    }
+
+    .empty-actions-filtro {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
     }
 
     /* Alert */
@@ -533,23 +570,39 @@ export class PalpitesComponent {
   private readonly expandedJogos = signal<Set<string>>(new Set());
 
   readonly filtroData = signal('');
+  readonly filtroTime = signal('');
 
   readonly datasDisponiveis = computed(() => {
+    const time = this.filtroTime();
     const datas = new Set<string>();
     for (const jogo of this.bolaoService.bolao().jogos.filter(j => !j.encerrado && !!j.dataHora)) {
+      if (time && jogo.timeCasa !== time && jogo.timeVisitante !== time) continue;
       datas.add(getDataBrasilia(jogo.dataHora!));
     }
     return Array.from(datas).sort();
   });
 
+  readonly timesDisponiveis = computed(() => {
+    const data = this.filtroData();
+    const times = new Set<string>();
+    for (const jogo of this.bolaoService.bolao().jogos.filter(j => !j.encerrado)) {
+      if (data && (!jogo.dataHora || getDataBrasilia(jogo.dataHora) !== data)) continue;
+      times.add(jogo.timeCasa);
+      times.add(jogo.timeVisitante);
+    }
+    return Array.from(times).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  });
+
   readonly jogosAbertos = computed(() => {
-    const filtro = this.filtroData();
+    const filtroData = this.filtroData();
+    const filtroTime = this.filtroTime();
     return this.bolaoService.bolao().jogos.filter(j => {
       if (j.encerrado) return false;
-      if (filtro) {
+      if (filtroData) {
         if (!j.dataHora) return false;
-        return getDataBrasilia(j.dataHora) === filtro;
+        if (getDataBrasilia(j.dataHora) !== filtroData) return false;
       }
+      if (filtroTime && j.timeCasa !== filtroTime && j.timeVisitante !== filtroTime) return false;
       return true;
     });
   });
@@ -565,6 +618,10 @@ export class PalpitesComponent {
 
   selecionarData(data: string): void {
     this.filtroData.set(this.filtroData() === data ? '' : data);
+  }
+
+  selecionarTime(time: string): void {
+    this.filtroTime.set(this.filtroTime() === time ? '' : time);
   }
 
   trackById(_: number, jogo: Jogo): string {
