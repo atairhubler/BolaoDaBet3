@@ -9,6 +9,15 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { BolaoService } from '../../core/services/bolao.service';
 
+const getDataBrasilia = (dataHora: string): string =>
+  new Date(dataHora).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+
+const formatarChip = (dataStr: string): string => {
+  const [y, m, d] = dataStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }).replace('.', '');
+};
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -56,12 +65,40 @@ import { BolaoService } from '../../core/services/bolao.service';
         </div>
       </div>
 
+      <!-- Filtro por data (Dashboard) -->
+      <div class="filtro-bar" *ngIf="datasDisponiveis().length > 0">
+        <mat-icon class="filtro-icon">calendar_today</mat-icon>
+        <div class="filtro-chips">
+          <button
+            class="chip-data"
+            [class.chip-ativo]="filtroData() === ''"
+            (click)="filtroData.set('')"
+          >Todos</button>
+          <button
+            class="chip-data"
+            *ngFor="let d of datasDisponiveis()"
+            [class.chip-ativo]="filtroData() === d"
+            (click)="selecionarData(d)"
+          >{{ formatarChip(d) }}</button>
+        </div>
+        <span *ngIf="filtroData()" class="filtro-resultado">
+          {{ proximosJogos().length }} jogo(s)
+        </span>
+      </div>
+
       <!-- Próximos Jogos em Destaque -->
-      <div *ngIf="proximosJogos().length > 0" class="proximos-section">
+      <div *ngIf="proximosJogos().length > 0 || filtroData()" class="proximos-section">
         <div class="section-header">
           <mat-icon>upcoming</mat-icon>
           <span>Próximos Jogos</span>
           <span class="section-count">{{ proximosJogos().length }}</span>
+        </div>
+
+        <!-- Vazio filtrado -->
+        <div *ngIf="proximosJogos().length === 0 && filtroData()" class="filtro-vazio">
+          <mat-icon>event_busy</mat-icon>
+          <span>Nenhum jogo agendado para esta data.</span>
+          <button mat-stroked-button (click)="filtroData.set('')">Ver todos</button>
         </div>
 
         <div class="proximos-grid">
@@ -159,6 +196,73 @@ import { BolaoService } from '../../core/services/bolao.service';
       align-items: center;
       gap: 10px;
     }
+
+    /* ── Filtro por data ── */
+    .filtro-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .filtro-icon {
+      color: #2e7d32;
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .filtro-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      flex: 1;
+    }
+
+    .chip-data {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1.5px solid #c8e6c9;
+      background: white;
+      color: #2e7d32;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      text-transform: capitalize;
+    }
+
+    .chip-data:hover { background: #e8f5e9; border-color: #2e7d32; }
+
+    .chip-ativo {
+      background: #2e7d32 !important;
+      color: white !important;
+      border-color: #2e7d32 !important;
+    }
+
+    .filtro-resultado {
+      font-size: 0.82rem;
+      color: #757575;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .filtro-vazio {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      background: #f5f5f5;
+      border-radius: 10px;
+      color: #757575;
+      font-size: 0.9rem;
+      margin-bottom: 14px;
+    }
+
+    .filtro-vazio mat-icon { color: #bdbdbd; }
 
     /* ── Seção próximos jogos ── */
     .proximos-section {
@@ -515,20 +619,40 @@ export class DashboardComponent {
 
   readonly bolao = this.bolaoService.bolao;
   readonly importando = signal(false);
+  readonly filtroData = signal('');
+
+  readonly formatarChip = formatarChip;
 
   readonly jogosAoVivo = computed(() =>
     this.bolao().jogos.filter(j => !j.encerrado && !!j.placardAoVivo)
   );
 
-  readonly proximosJogos = computed(() =>
-    this.bolao().jogos
-      .filter(j => !j.encerrado && !!j.dataHora && !j.placardAoVivo)
-      .sort((a, b) => new Date(a.dataHora!).getTime() - new Date(b.dataHora!).getTime())
-  );
+  readonly datasDisponiveis = computed(() => {
+    const datas = new Set<string>();
+    for (const jogo of this.bolao().jogos.filter(j => !j.encerrado && !!j.dataHora && !j.placardAoVivo)) {
+      datas.add(getDataBrasilia(jogo.dataHora!));
+    }
+    return Array.from(datas).sort();
+  });
+
+  readonly proximosJogos = computed(() => {
+    const filtro = this.filtroData();
+    return this.bolao().jogos
+      .filter(j => {
+        if (j.encerrado || !j.dataHora || j.placardAoVivo) return false;
+        if (filtro && getDataBrasilia(j.dataHora) !== filtro) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(a.dataHora!).getTime() - new Date(b.dataHora!).getTime());
+  });
 
   readonly jogosSemData = computed(() =>
     this.bolao().jogos.filter(j => !j.encerrado && !j.dataHora && !j.placardAoVivo)
   );
+
+  selecionarData(data: string): void {
+    this.filtroData.set(this.filtroData() === data ? '' : data);
+  }
 
   async importarJogos(): Promise<void> {
     this.importando.set(true);
