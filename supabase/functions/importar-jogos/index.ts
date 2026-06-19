@@ -1,7 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const BOLAO_ID = 'bet3';
-const COMPETITION = 'WC'; // Copa do Mundo FIFA
+const COMPETITION = 'WC';
 
 // Mapeamento: nome em inglês (football-data.org) → nome em português (bolão)
 const TEAM_MAP: Record<string, string> = {
@@ -63,6 +63,20 @@ const TEAM_MAP: Record<string, string> = {
   'South Africa': 'África do Sul',
 };
 
+// Mapeamento: stage da API → fase do bolão
+const STAGE_MAP: Record<string, string> = {
+  'GROUP_STAGE': 'Fase de Grupos',
+  'PRELIMINARY_ROUND': 'Fase de Grupos',
+  'ROUND_OF_16': 'Oitavas de Final',
+  'LAST_16': 'Oitavas de Final',
+  'QUARTER_FINALS': 'Quartas de Final',
+  'SEMI_FINALS': 'Semifinal',
+  'THIRD_PLACE': 'Disputa 3º Lugar',
+  'FINAL': 'Final',
+  'PLAYOFF_ROUND_ONE': 'Playoff',
+  'PLAYOFF_ROUND_TWO': 'Playoff',
+};
+
 interface Palpite {
   participanteId: string;
   golsCasa: number;
@@ -88,6 +102,8 @@ interface Bolao {
   jogos: Jogo[];
 }
 
+const gerarId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
+
 Deno.serve(async () => {
   try {
     const apiToken = Deno.env.get('FOOTBALL_DATA_TOKEN');
@@ -100,10 +116,9 @@ Deno.serve(async () => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Busca partidas finalizadas hoje na Copa do Mundo
-    const today = new Date().toISOString().split('T')[0];
+    // Busca todos os jogos da Copa do Mundo (sem filtro de status para pegar tudo)
     const apiRes = await fetch(
-      `https://api.football-data.org/v4/competitions/${COMPETITION}/matches?status=FINISHED&dateFrom=${today}&dateTo=${today}`,
+      `https://api.football-data.org/v4/competitions/${COMPETITION}/matches`,
       { headers: { 'X-Auth-Token': apiToken } }
     );
 
@@ -113,13 +128,18 @@ Deno.serve(async () => {
     }
 
     const apiData = await apiRes.json();
-    const matches: unknown[] = apiData.matches ?? [];
+    const allMatches: unknown[] = apiData.matches ?? [];
+
+    // Filtra apenas os jogos agendados (ainda não começaram)
+    const matches = (allMatches as Record<string, any>[]).filter(
+      m => m.status === 'SCHEDULED' || m.status === 'TIMED'
+    );
 
     if (matches.length === 0) {
-      return json({ ok: true, mensagem: 'Sem jogos finalizados hoje', jogosAtualizados: 0 });
+      return json({ ok: true, mensagem: 'Nenhum jogo agendado encontrado na API', importados: 0, pulados: 0, detalhes: [] });
     }
 
-    // Carrega o bolão do Supabase
+    // Carrega o bolão
     const { data: bolaoRow, error: dbError } = await supabase
       .from('boloes')
       .select('dados')
@@ -131,101 +151,60 @@ Deno.serve(async () => {
     }
 
     const bolao = bolaoRow.dados as Bolao;
-    const atualizados: string[] = [];
+    const importados: string[] = [];
+    const pulados: string[] = [];
 
-    // Limpa placardAoVivo de todos os jogos não encerrados (será repopulado abaixo)
-    for (const jogo of bolao.jogos) {
-      if (!jogo.encerrado) {
-        delete jogo.placardAoVivo;
-      }
-    }
+    for (const match of matches) {
+      const homeEn: string = match.homeTeam?.name ?? match.homeTeam?.shortName ?? '';
+      const awayEn: string = match.awayTeam?.name ?? match.awayTeam?.shortName ?? '';
+      const stage: string = match.stage ?? '';
+      const utcDate: string = match.utcDate ?? '';
 
-    // --- Jogos FINALIZADOS: registra resultado e encerra ---
-    for (const match of matches as Record<string, any>[]) {
-      const homeEn: string = match.homeTeam?.name ?? '';
-      const awayEn: string = match.awayTeam?.name ?? '';
-      const golsHome: number | null = match.score?.fullTime?.home ?? null;
-      const golsAway: number | null = match.score?.fullTime?.away ?? null;
-
-      if (golsHome === null || golsAway === null) continue;
+      if (!homeEn || !awayEn) continue;
 
       const homePT = TEAM_MAP[homeEn] ?? homeEn;
       const awayPT = TEAM_MAP[awayEn] ?? awayEn;
+      const fase = STAGE_MAP[stage] ?? 'Fase de Grupos';
 
-      // Encontra o jogo no bolão pelo nome dos times (em qualquer ordem)
-      const jogo = bolao.jogos.find(
-        (j) =>
-          !j.encerrado &&
-          ((j.timeCasa === homePT && j.timeVisitante === awayPT) ||
-            (j.timeCasa === awayPT && j.timeVisitante === homePT))
+      // Verifica se o jogo já existe no bolão (em qualquer ordem)
+      const existe = bolao.jogos.some(
+        j =>
+          (j.timeCasa === homePT && j.timeVisitante === awayPT) ||
+          (j.timeCasa === awayPT && j.timeVisitante === homePT)
       );
 
-      if (!jogo) continue;
-
-      // Ajusta os gols conforme a ordem dos times no bolão
-      const invertido = jogo.timeCasa === awayPT;
-      jogo.resultado = {
-        golsCasa: invertido ? golsAway : golsHome,
-        golsVisitante: invertido ? golsHome : golsAway,
-      };
-      jogo.encerrado = true;
-      delete jogo.placardAoVivo;
-
-      atualizados.push(
-        `[FINAL] ${jogo.timeCasa} ${jogo.resultado.golsCasa}×${jogo.resultado.golsVisitante} ${jogo.timeVisitante}`
-      );
-    }
-
-    // --- Jogos AO VIVO: atualiza placar parcial sem encerrar ---
-    const liveRes = await fetch(
-      `https://api.football-data.org/v4/competitions/${COMPETITION}/matches?status=IN_PLAY,PAUSED&dateFrom=${today}&dateTo=${today}`,
-      { headers: { 'X-Auth-Token': apiToken } }
-    );
-
-    if (liveRes.ok) {
-      const liveData = await liveRes.json();
-      const liveMatches: unknown[] = liveData.matches ?? [];
-
-      for (const match of liveMatches as Record<string, any>[]) {
-        const homeEn: string = match.homeTeam?.name ?? '';
-        const awayEn: string = match.awayTeam?.name ?? '';
-        const golsHome: number = match.score?.fullTime?.home ?? 0;
-        const golsAway: number = match.score?.fullTime?.away ?? 0;
-        const minuto: number | undefined = match.minute ?? undefined;
-
-        const homePT = TEAM_MAP[homeEn] ?? homeEn;
-        const awayPT = TEAM_MAP[awayEn] ?? awayEn;
-
-        const jogo = bolao.jogos.find(
-          (j) =>
-            !j.encerrado &&
-            ((j.timeCasa === homePT && j.timeVisitante === awayPT) ||
-              (j.timeCasa === awayPT && j.timeVisitante === homePT))
-        );
-
-        if (!jogo) continue;
-
-        const invertido = jogo.timeCasa === awayPT;
-        jogo.placardAoVivo = {
-          golsCasa: invertido ? golsAway : golsHome,
-          golsVisitante: invertido ? golsHome : golsAway,
-          minuto,
-        };
-
-        atualizados.push(
-          `[AO VIVO${minuto ? ` ${minuto}'` : ''}] ${jogo.timeCasa} ${jogo.placardAoVivo.golsCasa}×${jogo.placardAoVivo.golsVisitante} ${jogo.timeVisitante}`
-        );
+      if (existe) {
+        pulados.push(`${homePT} vs ${awayPT}`);
+        continue;
       }
+
+      const novoJogo: Jogo = {
+        id: gerarId(),
+        timeCasa: homePT,
+        timeVisitante: awayPT,
+        fase,
+        dataHora: utcDate || undefined,
+        palpites: [],
+        encerrado: false,
+      };
+
+      bolao.jogos.push(novoJogo);
+      importados.push(`${homePT} vs ${awayPT} (${fase} — ${utcDate ? new Date(utcDate).toLocaleDateString('pt-BR') : 'sem data'})`);
     }
 
-    if (atualizados.length > 0) {
+    if (importados.length > 0) {
       await supabase
         .from('boloes')
         .update({ dados: bolao, updated_at: new Date().toISOString() })
         .eq('id', BOLAO_ID);
     }
 
-    return json({ ok: true, jogosAtualizados: atualizados.length, detalhes: atualizados });
+    return json({
+      ok: true,
+      importados: importados.length,
+      pulados: pulados.length,
+      detalhes: importados,
+    });
   } catch (err) {
     return json({ error: String(err) }, 500);
   }

@@ -161,6 +161,12 @@ export class BolaoService {
     this.logPalpite(jogoId, participanteId, golsCasa, golsVisitante, isUpdate ? 'ATUALIZADO' : 'CRIADO');
   }
 
+  async importarJogos(): Promise<{ importados: number; pulados: number; detalhes: string[] }> {
+    const { data, error } = await this.supabase.functions.invoke('importar-jogos');
+    if (error) throw error;
+    return data as { importados: number; pulados: number; detalhes: string[] };
+  }
+
   async carregarLogs(): Promise<PalpiteLog[]> {
     const { data } = await this.supabase
       .from('palpites_log')

@@ -14,6 +14,12 @@ export interface Resultado {
   golsVisitante: number;
 }
 
+export interface PlacardAoVivo {
+  golsCasa: number;
+  golsVisitante: number;
+  minuto?: number;
+}
+
 export interface Jogo {
   id: string;
   timeCasa: string;
@@ -23,6 +29,7 @@ export interface Jogo {
   palpites: Palpite[];
   resultado?: Resultado;
   encerrado: boolean;
+  placardAoVivo?: PlacardAoVivo;
 }
 
 export interface Bolao {

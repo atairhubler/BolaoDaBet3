@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { BolaoService } from '../../core/services/bolao.service';
 
 @Component({
@@ -21,12 +22,39 @@ import { BolaoService } from '../../core/services/bolao.service';
     MatIconModule,
     MatChipsModule,
     MatDividerModule,
+    MatSnackBarModule,
   ],
   template: `
     <div class="dashboard">
       <h1 class="page-title">
         <span>🏆</span> {{ bolao().nome }}
       </h1>
+
+      <!-- Jogos Ao Vivo -->
+      <div *ngIf="jogosAoVivo().length > 0" class="ao-vivo-section">
+        <div class="section-header ao-vivo-header">
+          <span class="live-dot"></span>
+          <span>Ao Vivo Agora</span>
+          <span class="section-count live-count">{{ jogosAoVivo().length }}</span>
+        </div>
+        <div class="ao-vivo-grid">
+          <div class="ao-vivo-card" *ngFor="let jogo of jogosAoVivo()">
+            <div class="ao-vivo-topo">
+              <span class="fase-tag">{{ jogo.fase }}</span>
+              <span class="minuto-badge" *ngIf="jogo.placardAoVivo!.minuto">{{ jogo.placardAoVivo!.minuto }}'</span>
+            </div>
+            <div class="ao-vivo-confronto">
+              <span class="time-live">{{ jogo.timeCasa }}</span>
+              <div class="placar-live">
+                <span class="gol-live">{{ jogo.placardAoVivo!.golsCasa }}</span>
+                <span class="sep-live">×</span>
+                <span class="gol-live">{{ jogo.placardAoVivo!.golsVisitante }}</span>
+              </div>
+              <span class="time-live">{{ jogo.timeVisitante }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Próximos Jogos em Destaque -->
       <div *ngIf="proximosJogos().length > 0" class="proximos-section">
@@ -97,6 +125,10 @@ import { BolaoService } from '../../core/services/bolao.service';
             <a routerLink="/classificacao" mat-flat-button color="primary">
               <mat-icon>emoji_events</mat-icon> Ver Classificação
             </a>
+            <button mat-stroked-button (click)="importarJogos()" [disabled]="importando()">
+              <mat-icon>{{ importando() ? 'hourglass_empty' : 'cloud_download' }}</mat-icon>
+              {{ importando() ? 'Importando...' : 'Importar Jogos da Copa' }}
+            </button>
           </div>
         </mat-card-content>
       </mat-card>
@@ -374,23 +406,142 @@ import { BolaoService } from '../../core/services/bolao.service';
       flex-wrap: wrap;
     }
 
+    /* ── Ao Vivo ── */
+    .ao-vivo-section {
+      margin-bottom: 28px;
+    }
+
+    .ao-vivo-header {
+      color: #c62828;
+    }
+
+    .ao-vivo-header mat-icon { color: #c62828; }
+
+    .live-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f44336;
+      animation: pulse-live 1.4s infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .live-count {
+      background: #c62828;
+    }
+
+    .ao-vivo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .ao-vivo-card {
+      background: white;
+      border-radius: 12px;
+      border: 2px solid #f44336;
+      padding: 14px 18px;
+      box-shadow: 0 2px 12px rgba(244, 67, 54, 0.15);
+    }
+
+    .ao-vivo-topo {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .minuto-badge {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #f44336;
+      background: #ffebee;
+      padding: 2px 8px;
+      border-radius: 8px;
+    }
+
+    .ao-vivo-confronto {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .time-live {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #212121;
+      flex: 1;
+    }
+
+    .time-live:last-child { text-align: right; }
+
+    .placar-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #c62828;
+      border-radius: 10px;
+      padding: 6px 14px;
+    }
+
+    .gol-live {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: white;
+      line-height: 1;
+    }
+
+    .sep-live {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.7);
+      font-weight: 600;
+    }
+
     @media (max-width: 600px) {
       .proximos-grid { grid-template-columns: 1fr; }
+      .ao-vivo-grid { grid-template-columns: 1fr; }
     }
   `],
 })
 export class DashboardComponent {
   private readonly bolaoService = inject(BolaoService);
+  private readonly snackBar = inject(MatSnackBar);
 
   readonly bolao = this.bolaoService.bolao;
+  readonly importando = signal(false);
+
+  readonly jogosAoVivo = computed(() =>
+    this.bolao().jogos.filter(j => !j.encerrado && !!j.placardAoVivo)
+  );
 
   readonly proximosJogos = computed(() =>
     this.bolao().jogos
-      .filter(j => !j.encerrado && !!j.dataHora)
+      .filter(j => !j.encerrado && !!j.dataHora && !j.placardAoVivo)
       .sort((a, b) => new Date(a.dataHora!).getTime() - new Date(b.dataHora!).getTime())
   );
 
   readonly jogosSemData = computed(() =>
-    this.bolao().jogos.filter(j => !j.encerrado && !j.dataHora)
+    this.bolao().jogos.filter(j => !j.encerrado && !j.dataHora && !j.placardAoVivo)
   );
+
+  async importarJogos(): Promise<void> {
+    this.importando.set(true);
+    try {
+      const result = await this.bolaoService.importarJogos();
+      const msg = result.importados > 0
+        ? `${result.importados} jogo(s) importado(s) com sucesso!`
+        : `Nenhum jogo novo — ${result.pulados} já estavam cadastrados.`;
+      this.snackBar.open(msg, 'OK', { duration: 5000 });
+    } catch {
+      this.snackBar.open('Erro ao importar jogos. Verifique se a função está publicada no Supabase.', 'OK', { duration: 5000 });
+    } finally {
+      this.importando.set(false);
+    }
+  }
 }
